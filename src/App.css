@@ -1,4 +1,4 @@
-.signed-out-page {
+.signed-in-page {
   width: 100vw;
   height: 100vh;
   background-color: #000000;
@@ -9,18 +9,22 @@
   padding: 0;
 }
 
-.signed-in-page {
+.signed-out-page {
   width: 100vw;
   height: 100vh;
   background-color: #ffffff;
   display: flex;
   justify-content: center;
-  align-items: flex-end;
+  align-items: center;
   margin: 0;
   padding: 0;
 }
 
 .switch-button {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 100;
   padding: 12px 24px;
   font-size: 16px;
   font-weight: bold;
@@ -30,7 +34,6 @@
   background-color: #fff;
   color: #000;
   transition: all 0.3s ease;
-  margin-bottom: 20px;
 }
 
 .switch-button:hover {
@@ -38,14 +41,93 @@
   color: #fff;
 }
 
-.signed-out-page .switch-button {
+.signed-in-page .switch-button {
   background-color: #fff;
   color: #000;
   border-color: #fff;
 }
 
-.signed-out-page .switch-button:hover {
+.signed-in-page .switch-button:hover {
   background-color: #333;
   color: #fff;
   border-color: #333;
+}
+
+.registration-form {
+  background-color: #e53935;
+  color: #ffffff;
+  padding: 24px 28px;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  width: 90%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .registration-form {
+    padding: 32px 40px;
+  }
+}
+
+.form-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  background-color: #ffffff;
+  color: #333333;
+  font-size: 14px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.form-input:focus {
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.submit-button {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: none;
+  background-color: #ffffff;
+  color: #e53935;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.submit-button:hover {
+  background-color: #fbe9e7;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+}
+
+.form-message {
+  font-size: 13px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.15);
 }
