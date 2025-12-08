@@ -1,6 +1,6 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useState, useEffect } from 'react'
 import '../App.css'
-import { ref, get, set } from 'firebase/database'
+import { ref, get, set, onValue } from 'firebase/database'
 import { db } from '../firebase'
 
 function RegistrationPage() {
@@ -8,6 +8,24 @@ function RegistrationPage() {
   const [luckyNumber, setLuckyNumber] = useState<string>('')
   const [message, setMessage] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isLocked, setIsLocked] = useState<boolean>(false)
+
+  // Load locked status from Firebase
+  useEffect(() => {
+    if (!db) return
+
+    const lockedRef = ref(db, 'settings/locked')
+    
+    const unsubscribe = onValue(lockedRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setIsLocked(snapshot.val() === true)
+      } else {
+        setIsLocked(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -16,6 +34,13 @@ function RegistrationPage() {
 
     if (!db) {
       setMessage('Opps! có lỗi xảy ra, vui lòng thử lại')
+      setIsLoading(false)
+      return
+    }
+
+    // Check if registration is locked
+    if (isLocked) {
+      setMessage('Opps! đã khóa đăng ký, vui lòng thử lại sau')
       setIsLoading(false)
       return
     }
@@ -69,6 +94,11 @@ function RegistrationPage() {
     <div className="signed-out-page">
       <form className="registration-form" onSubmit={handleSubmit}>
         <h2 className="form-title">Đăng ký may mắn</h2>
+        {isLocked && (
+          <div className="form-error" style={{ textAlign: 'center', marginBottom: '8px' }}>
+            ⚠️ Danh sách đăng ký đang bị khóa. Vui lòng thử lại sau!
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="email" className="form-label">
             Email
@@ -80,6 +110,7 @@ function RegistrationPage() {
             placeholder="Nhập email của bạn"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={isLocked}
             required
           />
         </div>
@@ -94,6 +125,7 @@ function RegistrationPage() {
             placeholder="Nhập số may mắn của bạn"
             value={luckyNumber}
             onChange={(e) => setLuckyNumber(e.target.value)}
+            disabled={isLocked}
             required
           />
         </div>
@@ -102,8 +134,12 @@ function RegistrationPage() {
             {message}
           </p>
         )}
-        <button type="submit" className="submit-button" disabled={isLoading}>
-          {isLoading ? 'Đang xử lý...' : 'Đăng ký'}
+        <button 
+          type="submit" 
+          className="submit-button" 
+          disabled={isLoading || isLocked}
+        >
+          {isLoading ? 'Đang xử lý...' : isLocked ? 'Đăng ký đã bị khóa' : 'Đăng ký'}
         </button>
       </form>
     </div>

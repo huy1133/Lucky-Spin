@@ -1,9 +1,18 @@
 import '../App.css'
+import AnimatedNodeBackground from './AnimatedNodeBackground'
+import ParticipantList from './ParticipantList'
+import SpinWheel from './SpinWheel.tsx'
+import PrizeList from './PrizeList.tsx'
 
 function Home() {
   return (
     <div className="signed-in-page">
-      <h1>Welcome to the Home Page</h1>
+      <AnimatedNodeBackground />
+      <div className="home-layout">
+        <ParticipantList />
+        <SpinWheel />
+        <PrizeList />
+      </div>
     </div>
   )
 }
