@@ -1,0 +1,177 @@
+import { useEffect, useState } from 'react'
+import '../App.css'
+import { ref, onValue, remove, set } from 'firebase/database'
+import { db } from '../firebase'
+
+interface Participant {
+  luckyNumber: string
+  email: string
+  timestamp: number
+}
+
+function ParticipantList() {
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [isLocked, setIsLocked] = useState<boolean>(false)
+
+  // Load locked status from Firebase
+  useEffect(() => {
+    if (!db) return
+
+    const lockedRef = ref(db, 'settings/locked')
+    
+    const unsubscribe = onValue(lockedRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setIsLocked(snapshot.val() === true)
+      } else {
+        setIsLocked(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Load participants from Firebase
+  useEffect(() => {
+    if (!db) {
+      setIsLoading(false)
+      return
+    }
+
+    const registrationRef = ref(db, 'registration')
+    
+    const unsubscribe = onValue(registrationRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        const participantsList: Participant[] = Object.keys(data).map((luckyNumber) => ({
+          luckyNumber,
+          email: data[luckyNumber].email,
+          timestamp: data[luckyNumber].timestamp,
+        }))
+        // Sort by timestamp (newest first)
+        participantsList.sort((a, b) => b.timestamp - a.timestamp)
+        setParticipants(participantsList)
+      } else {
+        setParticipants([])
+      }
+      setIsLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  const handleToggleLock = async () => {
+    if (!db) return
+    
+    try {
+      const lockedRef = ref(db, 'settings/locked')
+      await set(lockedRef, !isLocked)
+    } catch (error) {
+      console.error('Error toggling lock:', error)
+      alert('Có lỗi xảy ra khi cập nhật trạng thái khóa')
+    }
+  }
+
+  const handleDelete = async (luckyNumber: string) => {
+    if (!db) return
+    
+    if (window.confirm('Bạn có chắc chắn muốn xóa người tham gia này?')) {
+      try {
+        const participantRef = ref(db, `registration/${luckyNumber}`)
+        await remove(participantRef)
+      } catch (error) {
+        console.error('Error deleting participant:', error)
+        alert('Có lỗi xảy ra khi xóa người tham gia')
+      }
+    }
+  }
+
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp)
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  return (
+    <div className="participant-list-section">
+      <div className="participant-list-header">
+        <h2>Danh sách tham gia</h2>
+        <div className="participant-header-controls">
+          <span className="participant-count">{participants.length} người</span>
+          <button
+            className={`participant-lock-toggle ${isLocked ? 'locked' : 'unlocked'}`}
+            onClick={handleToggleLock}
+            title={isLocked ? 'Mở khóa danh sách' : 'Khóa danh sách'}
+            aria-label={isLocked ? 'Mở khóa danh sách' : 'Khóa danh sách'}
+          />
+        </div>
+      </div>
+      
+      {isLoading ? (
+        <div className="participant-list-loading">Đang tải...</div>
+      ) : participants.length === 0 ? (
+        <div className="participant-list-empty">Chưa có người tham gia</div>
+      ) : (
+        <div className="participant-list-content">
+          {participants.map((participant) => (
+            <div key={participant.luckyNumber} className="participant-item">
+              <div className="participant-info">
+                <div className="participant-top-row">
+                  <span className="participant-email">{participant.email}</span>
+                  <span className="participant-time">
+                    {formatDate(participant.timestamp)}
+                  </span>
+                </div>
+                <div className="participant-lucky-number">
+                  Số: {participant.luckyNumber}
+                </div>
+              </div>
+              <button
+                className="participant-delete-btn"
+                onClick={() => handleDelete(participant.luckyNumber)}
+                title="Xóa người tham gia"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M10 11V17"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M14 11V17"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default ParticipantList
