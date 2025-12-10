@@ -3,12 +3,22 @@ import '../App.css'
 import { ref, get, set, onValue } from 'firebase/database'
 import { db } from '../firebase'
 
+interface LookupResult {
+  email: string
+  luckyNumber: string
+  timestamp: number
+}
+
 function RegistrationPage() {
   const [email, setEmail] = useState<string>('')
   const [luckyNumber, setLuckyNumber] = useState<string>('')
   const [message, setMessage] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isLocked, setIsLocked] = useState<boolean>(false)
+  const [lookupEmail, setLookupEmail] = useState<string>('')
+  const [lookupResult, setLookupResult] = useState<LookupResult | null>(null)
+  const [isLookingUp, setIsLookingUp] = useState<boolean>(false)
+  const [showLookupModal, setShowLookupModal] = useState<boolean>(false)
 
   // Load locked status from Firebase
   useEffect(() => {
@@ -90,6 +100,91 @@ function RegistrationPage() {
     }
   }
 
+  const handleOpenLookup = () => {
+    setShowLookupModal(true)
+    setLookupEmail('')
+    setMessage('')
+  }
+
+  const handleCloseLookupModal = () => {
+    setShowLookupModal(false)
+    setLookupEmail('')
+    setMessage('')
+  }
+
+  const handleLookup = async () => {
+    if (!lookupEmail.trim()) {
+      setMessage('Vui lòng nhập email để tra cứu')
+      return
+    }
+
+    setIsLookingUp(true)
+    setMessage('')
+
+    if (!db) {
+      setMessage('Opps! có lỗi xảy ra, vui lòng thử lại')
+      setIsLookingUp(false)
+      return
+    }
+
+    try {
+      const emailTrimmed = lookupEmail.trim().toLowerCase()
+      const registrationRef = ref(db, 'registration')
+      const allRegistrations = await get(registrationRef)
+
+      if (!allRegistrations.exists()) {
+        setMessage('Không tìm thấy thông tin đăng ký')
+        setIsLookingUp(false)
+        return
+      }
+
+      const data = allRegistrations.val()
+      let found: LookupResult | null = null
+
+      // Search for email in all registrations
+      for (const [number, registration] of Object.entries(data)) {
+        const reg = registration as any
+        if (reg.email === emailTrimmed) {
+          found = {
+            email: reg.email,
+            luckyNumber: number,
+            timestamp: reg.timestamp,
+          }
+          break
+        }
+      }
+
+      if (found) {
+        setLookupResult(found)
+        setShowLookupModal(false)
+        setLookupEmail('')
+      } else {
+        setMessage('Không tìm thấy thông tin đăng ký với email này')
+      }
+    } catch (error: any) {
+      console.error('Error looking up:', error)
+      setMessage('Opps! có lỗi xảy ra, vui lòng thử lại')
+    } finally {
+      setIsLookingUp(false)
+    }
+  }
+
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp)
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  const handleCloseLookupPopup = () => {
+    setLookupResult(null)
+  }
+
   return (
     <div className="signed-out-page">
       <form className="registration-form" onSubmit={handleSubmit}>
@@ -134,14 +229,106 @@ function RegistrationPage() {
             {message}
           </p>
         )}
-        <button 
-          type="submit" 
-          className="submit-button" 
-          disabled={isLoading || isLocked}
-        >
-          {isLoading ? 'Đang xử lý...' : isLocked ? 'Đăng ký đã bị khóa' : 'Đăng ký'}
-        </button>
+        <div className="form-buttons">
+          <button 
+            type="submit" 
+            className="submit-button" 
+            disabled={isLoading || isLocked}
+          >
+            {isLoading ? 'Đang xử lý...' : isLocked ? 'Đăng ký đã bị khóa' : 'Đăng ký'}
+          </button>
+          <button 
+            type="button" 
+            className="lookup-button" 
+            onClick={handleOpenLookup}
+          >
+            Tra cứu
+          </button>
+        </div>
       </form>
+
+      {/* Lookup Form Modal */}
+      {showLookupModal && (
+        <div className="lookup-modal-overlay" onClick={handleCloseLookupModal}>
+          <div className="lookup-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="lookup-modal-content">
+              <h3 className="lookup-modal-title">Tra cứu thông tin đăng ký</h3>
+              <div className="form-group">
+                <label htmlFor="lookupEmail" className="form-label">
+                  Email
+                </label>
+                <input
+                  id="lookupEmail"
+                  type="email"
+                  className="form-input"
+                  placeholder="Nhập email để tra cứu"
+                  value={lookupEmail}
+                  onChange={(e) => setLookupEmail(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleLookup()
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+              {message && !message.includes('thành công') && (
+                <p className="lookup-error-message">
+                  {message}
+                </p>
+              )}
+              <div className="lookup-modal-buttons">
+                <button
+                  type="button"
+                  className="lookup-submit-button"
+                  onClick={handleLookup}
+                  disabled={isLookingUp}
+                >
+                  {isLookingUp ? 'Đang tra cứu...' : 'Tra cứu'}
+                </button>
+                <button
+                  type="button"
+                  className="lookup-cancel-button"
+                  onClick={handleCloseLookupModal}
+                  disabled={isLookingUp}
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lookup Result Popup */}
+      {lookupResult && (
+        <div className="lookup-modal-overlay" onClick={handleCloseLookupPopup}>
+          <div className="lookup-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="lookup-modal-content">
+              <h3 className="lookup-modal-title">Thông tin đã đăng ký</h3>
+              <div className="lookup-result-info">
+                <div className="lookup-result-item">
+                  <span className="lookup-result-label">Email:</span>
+                  <span className="lookup-result-value">{lookupResult.email}</span>
+                </div>
+                <div className="lookup-result-item">
+                  <span className="lookup-result-label">Số may mắn:</span>
+                  <span className="lookup-result-value">{lookupResult.luckyNumber}</span>
+                </div>
+                <div className="lookup-result-item">
+                  <span className="lookup-result-label">Thời gian đăng ký:</span>
+                  <span className="lookup-result-value">{formatDate(lookupResult.timestamp)}</span>
+                </div>
+              </div>
+              <div className="lookup-modal-buttons">
+                <button className="lookup-submit-button" onClick={handleCloseLookupPopup}>
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,27 +1,54 @@
 import { type FormEvent, useState } from 'react'
 import '../App.css'
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '../firebase'
 
-interface LoginPageProps {
-  onLoginSuccess: () => void
-}
-
-function LoginPage({ onLoginSuccess }: LoginPageProps) {
+function LoginPage() {
   const [loginEmail, setLoginEmail] = useState<string>('')
   const [loginPassword, setLoginPassword] = useState<string>('')
   const [loginError, setLoginError] = useState<string>('')
+  const [isLoading, setIsLoading] = useState<boolean>(false)
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setLoginError('')
+    setIsLoading(true)
 
-    // Simple validation - you can add real authentication here
     if (loginEmail.trim() === '' || loginPassword.trim() === '') {
       setLoginError('Vui lòng nhập đầy đủ thông tin')
+      setIsLoading(false)
       return
     }
 
-    // Simulate login success
-    onLoginSuccess()
+    if (!auth) {
+      setLoginError('Opps! có lỗi xảy ra, vui lòng thử lại')
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword)
+      // onLoginSuccess will be called automatically by auth state listener
+    } catch (error: any) {
+      console.error('Error logging in:', error)
+      let errorMessage = 'Opps! có lỗi xảy ra, vui lòng thử lại'
+      
+      if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Email không hợp lệ'
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Không tìm thấy tài khoản với email này'
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Mật khẩu không đúng'
+      } else if (error.code === 'auth/invalid-credential') {
+        errorMessage = 'Email hoặc mật khẩu không đúng'
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Quá nhiều lần thử. Vui lòng thử lại sau'
+      }
+      
+      setLoginError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -57,8 +84,12 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
           />
         </div>
         {loginError && <p className="form-error">{loginError}</p>}
-        <button type="submit" className="submit-button">
-          Đăng nhập
+        <button 
+          type="submit" 
+          className="submit-button login-submit-button"
+          disabled={isLoading}
+        >
+          {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </div>

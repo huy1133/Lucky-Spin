@@ -9,10 +9,13 @@ interface Participant {
   timestamp: number
 }
 
+type SortOption = 'number' | 'email' | 'timestamp'
+
 function ParticipantList() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isLocked, setIsLocked] = useState<boolean>(false)
+  const [sortBy, setSortBy] = useState<SortOption>('timestamp')
 
   // Load locked status from Firebase
   useEffect(() => {
@@ -48,8 +51,6 @@ function ParticipantList() {
           email: data[luckyNumber].email,
           timestamp: data[luckyNumber].timestamp,
         }))
-        // Sort by timestamp (newest first)
-        participantsList.sort((a, b) => b.timestamp - a.timestamp)
         setParticipants(participantsList)
       } else {
         setParticipants([])
@@ -97,11 +98,35 @@ function ParticipantList() {
     })
   }
 
+  // Sort participants based on selected option
+  const sortedParticipants = [...participants].sort((a, b) => {
+    switch (sortBy) {
+      case 'number':
+        return parseInt(a.luckyNumber) - parseInt(b.luckyNumber)
+      case 'email':
+        return a.email.localeCompare(b.email)
+      case 'timestamp':
+        return a.timestamp - b.timestamp
+      default:
+        return 0
+    }
+  })
+
   return (
     <div className="participant-list-section">
       <div className="participant-list-header">
         <h2>Danh sách tham gia</h2>
         <div className="participant-header-controls">
+          <select
+            className="participant-sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            title="Sắp xếp danh sách"
+          >
+            <option value="number">Số may mắn</option>
+            <option value="email">Email</option>
+            <option value="timestamp">Thời gian</option>
+          </select>
           <span className="participant-count">{participants.length} người</span>
           <button
             className={`participant-lock-toggle ${isLocked ? 'locked' : 'unlocked'}`}
@@ -118,7 +143,7 @@ function ParticipantList() {
         <div className="participant-list-empty">Chưa có người tham gia</div>
       ) : (
         <div className="participant-list-content">
-          {participants.map((participant) => (
+          {sortedParticipants.map((participant) => (
             <div key={participant.luckyNumber} className="participant-item">
               <div className="participant-info">
                 <div className="participant-top-row">

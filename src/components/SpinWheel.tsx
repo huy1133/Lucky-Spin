@@ -2,11 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import '../App.css'
 import { ref, onValue } from 'firebase/database'
 import { db } from '../firebase'
+import Confetti from './Confetti'
+
+// Spin duration in milliseconds - adjust this to control total spin time
+const SPIN_DURATION = 12000 // 12s mặc định, chỉnh theo ý bạn
+// Số vòng quay cơ bản (có thêm ngẫu nhiên nhẹ ở cuối)
+const SPIN_TURNS = 8 // số vòng quay toàn phần
 
 function SpinWheel() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [luckyNumbers, setLuckyNumbers] = useState<string[]>([])
   const [isSpinning, setIsSpinning] = useState<boolean>(false)
+  const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
+  const [showConfetti, setShowConfetti] = useState<boolean>(false)
   const rotationRef = useRef<number>(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
 
@@ -37,7 +45,8 @@ function SpinWheel() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const size = Math.min(window.innerHeight * 0.6, window.innerWidth * 0.5)
+    // Larger wheel size to accommodate more participants
+    const size = Math.min(window.innerHeight * 0.85, window.innerWidth * 0.8, 800)
     canvas.width = size
     canvas.height = size
     const centerX = size / 2
@@ -79,7 +88,7 @@ function SpinWheel() {
           ctx.translate(textX, textY)
           ctx.rotate(textAngle + Math.PI / 2)
           ctx.fillStyle = i % 2 === 0 ? '#e53935' : '#ffffff'
-          ctx.font = `bold ${Math.max(16, Math.min(24, radius / 8))}px Arial`
+          ctx.font = `bold ${Math.max(18, Math.min(28, radius / 7))}px Arial`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
           ctx.fillText(displayNumbers[i], 0, 0)
@@ -127,17 +136,33 @@ function SpinWheel() {
         ctx.globalAlpha = 1
       }
 
-      // Draw pointer at top
+      // Draw golden arrow pointer (triangle) for a sharper look
+      const pointerY = centerY - radius - 8 // tip sits inside the wheel
+      const arrowWidth = 28
+      const arrowHeight = 28
+
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'
+      ctx.shadowBlur = 8
+      ctx.shadowOffsetY = 2
+
       ctx.beginPath()
-      ctx.moveTo(centerX, centerY - radius - 30)
-      ctx.lineTo(centerX - 15, centerY - radius - 10)
-      ctx.lineTo(centerX + 15, centerY - radius - 10)
+      ctx.moveTo(centerX, pointerY + arrowHeight / 2) // tip
+      ctx.lineTo(centerX - arrowWidth / 2, pointerY - arrowHeight / 2)
+      ctx.lineTo(centerX + arrowWidth / 2, pointerY - arrowHeight / 2)
       ctx.closePath()
-      ctx.fillStyle = '#ffd700'
+
+      const gradient = ctx.createLinearGradient(centerX, pointerY - arrowHeight / 2, centerX, pointerY + arrowHeight / 2)
+      gradient.addColorStop(0, '#fdd835')  // bright gold
+      gradient.addColorStop(1, '#fbc02d')  // deeper gold
+      ctx.fillStyle = gradient
       ctx.fill()
-      ctx.strokeStyle = '#333'
+
+      ctx.strokeStyle = '#8d6e63'
       ctx.lineWidth = 2
       ctx.stroke()
+
+      ctx.restore()
     }
 
     // Animation loop for continuous drawing (for blinking lights)
@@ -160,21 +185,23 @@ function SpinWheel() {
     
     setIsSpinning(true)
     
-    // Random spin: 5-10 full rotations + random angle (clockwise = negative)
-    const spins = 5 + Math.random() * 5
-    const finalRotation = rotationRef.current - (spins * 2 * Math.PI + Math.random() * 2 * Math.PI)
+    // Spin configuration: base turns + random offset
+    const randomOffset = Math.random() * 2 * Math.PI // thêm góc ngẫu nhiên để không đoán trước
+    const totalTurns = SPIN_TURNS + Math.random() * 1.5 // thêm tối đa ~1.5 vòng ngẫu nhiên
+    const finalRotation = rotationRef.current - (totalTurns * 2 * Math.PI + randomOffset)
     
     // Animate to final position
     const startRotation = rotationRef.current
-    const duration = 3000 // 3 seconds
+    const duration = SPIN_DURATION
     const startTime = Date.now()
 
       const animateSpin = () => {
       const elapsed = Date.now() - startTime
       const progress = Math.min(elapsed / duration, 1)
       
-      // Easing function (ease-out)
-      const easeOut = 1 - Math.pow(1 - progress, 3)
+    // Đơn giản: ease-out thống nhất (cubic) để mượt và tránh giật
+    // progress: 0 -> 1, easeOut: 0 -> 1
+    const easeOut = 1 - Math.pow(1 - progress, 3)
       
       rotationRef.current = startRotation + (finalRotation - startRotation) * easeOut
       
@@ -221,7 +248,7 @@ function SpinWheel() {
           ctx.translate(textX, textY)
           ctx.rotate(textAngle + Math.PI / 2)
           ctx.fillStyle = i % 2 === 0 ? '#e53935' : '#ffffff'
-          ctx.font = `bold ${Math.max(16, Math.min(24, radius / 8))}px Arial`
+          ctx.font = `bold ${Math.max(18, Math.min(28, radius / 7))}px Arial`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
           ctx.fillText(displayNumbers[i], 0, 0)
@@ -267,46 +294,133 @@ function SpinWheel() {
         ctx.globalAlpha = 1
       }
 
-      // Pointer
+      // Draw golden arrow pointer (triangle) for a sharper look
+      const pointerY = centerY - radius - 8 // tip sits inside the wheel
+      const arrowWidth = 28
+      const arrowHeight = 28
+
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'
+      ctx.shadowBlur = 8
+      ctx.shadowOffsetY = 2
+
       ctx.beginPath()
-      ctx.moveTo(centerX, centerY - radius - 30)
-      ctx.lineTo(centerX - 15, centerY - radius - 10)
-      ctx.lineTo(centerX + 15, centerY - radius - 10)
+      ctx.moveTo(centerX, pointerY + arrowHeight / 2) // tip
+      ctx.lineTo(centerX - arrowWidth / 2, pointerY - arrowHeight / 2)
+      ctx.lineTo(centerX + arrowWidth / 2, pointerY - arrowHeight / 2)
       ctx.closePath()
-      ctx.fillStyle = '#ffd700'
+
+      const gradient = ctx.createLinearGradient(centerX, pointerY - arrowHeight / 2, centerX, pointerY + arrowHeight / 2)
+      gradient.addColorStop(0, '#fdd835')  // bright gold
+      gradient.addColorStop(1, '#fbc02d')  // deeper gold
+      ctx.fillStyle = gradient
       ctx.fill()
-      ctx.strokeStyle = '#333'
+
+      ctx.strokeStyle = '#8d6e63'
       ctx.lineWidth = 2
       ctx.stroke()
+
+      ctx.restore()
 
       if (progress < 1) {
         requestAnimationFrame(animateSpin)
       } else {
         setIsSpinning(false)
+        
+        // Calculate which number is selected (pointer is at top, angle = -Math.PI/2)
+        const displayNumbers = luckyNumbers.length % 2 === 1 
+          ? [...luckyNumbers, ''] 
+          : luckyNumbers
+        const segmentCount = displayNumbers.length || 1
+        const anglePerSegment = (2 * Math.PI) / segmentCount
+        
+        // Normalize rotation to 0-2π range
+        let normalizedRotation = rotationRef.current % (2 * Math.PI)
+        if (normalizedRotation < 0) {
+          normalizedRotation += 2 * Math.PI
+        }
+        
+        // Pointer is at top (-Math.PI/2 or 3*Math.PI/2)
+        // We need to find which segment's center is pointing upward
+        // The pointer points to -Math.PI/2, but segments rotate, so we need to find
+        // which segment center, when rotated, aligns with the pointer
+        const pointerAngle = (3 * Math.PI) / 2 // Top position
+        
+        // Calculate angle from center to pointer (fixed at top)
+        // Find which segment contains this angle after rotation
+        // We need to reverse the rotation to find the original segment
+        let selectedIndex = 0
+        let minDiff = Infinity
+        
+        for (let i = 0; i < segmentCount; i++) {
+          // Segment center angle in the rotated coordinate system
+          const segmentCenterAngle = (i * anglePerSegment + anglePerSegment / 2 + normalizedRotation) % (2 * Math.PI)
+          
+          // Calculate difference to pointer angle
+          let diff = Math.abs(segmentCenterAngle - pointerAngle)
+          // Handle wrap-around
+          diff = Math.min(diff, 2 * Math.PI - diff)
+          
+          if (diff < minDiff) {
+            minDiff = diff
+            selectedIndex = i
+          }
+        }
+        
+        const winner = displayNumbers[selectedIndex]
+        if (winner && winner !== '') {
+          setSelectedNumber(winner)
+          setShowConfetti(true)
+          // Hide confetti after 3 seconds
+          setTimeout(() => {
+            setShowConfetti(false)
+          }, 3000)
+        }
       }
     }
 
     animateSpin()
   }
 
+  const handleClosePopup = () => {
+    setSelectedNumber(null)
+  }
+
   return (
-    <div className="spin-wheel-section">
-      <div className="spin-wheel-container">
-        <canvas ref={canvasRef} className="spin-wheel-canvas" />
-        {luckyNumbers.length > 0 && (
-          <button
-            className="spin-button"
-            onClick={handleSpin}
-            disabled={isSpinning}
-          >
-            {isSpinning ? 'Đang quay...' : 'Quay số may mắn'}
-          </button>
-        )}
-        {luckyNumbers.length === 0 && (
-          <div className="spin-wheel-empty">Chưa có số may mắn để quay</div>
-        )}
+    <>
+      <Confetti active={showConfetti} />
+      <div className="spin-wheel-section">
+        <div className="spin-wheel-container">
+          <canvas ref={canvasRef} className="spin-wheel-canvas" />
+          {luckyNumbers.length > 0 && (
+            <button
+              className="spin-button"
+              onClick={handleSpin}
+              disabled={isSpinning}
+            >
+              {isSpinning ? 'Đang quay...' : 'Quay số may mắn'}
+            </button>
+          )}
+          {luckyNumbers.length === 0 && (
+            <div className="spin-wheel-empty">Chưa có số may mắn để quay</div>
+          )}
+        </div>
       </div>
-    </div>
+      
+      {selectedNumber && (
+        <div className="winner-popup-overlay" onClick={handleClosePopup}>
+          <div className="winner-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="winner-popup-content">
+              <div className="winner-popup-title">🎉 Chúc mừng! 🎉</div>
+              <div className="winner-popup-number">Số may mắn: {selectedNumber}</div>
+              <button className="winner-popup-close" onClick={handleClosePopup}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
