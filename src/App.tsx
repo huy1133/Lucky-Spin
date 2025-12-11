@@ -3,6 +3,7 @@ import './App.css'
 import LoginPage from './components/LoginPage'
 import RegistrationPage from './components/RegistrationPage'
 import Home from './components/Home'
+import UserInfoPage from './components/UserInfoPage'
 import { auth } from './firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 
@@ -10,6 +11,13 @@ function App() {
   const [isConsole, setIsConsole] = useState<boolean>(false)
   const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true)
+  const [hasRegistrationData, setHasRegistrationData] = useState<boolean>(false)
+
+  // Check local storage for registration data
+  useEffect(() => {
+    const storedData = localStorage.getItem('registrationData')
+    setHasRegistrationData(!!storedData)
+  }, [])
 
   // Listen to auth state changes
   useEffect(() => {
@@ -31,6 +39,23 @@ function App() {
     })
 
     return () => unsubscribe()
+  }, [])
+
+  // Listen for storage changes to update hasRegistrationData
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedData = localStorage.getItem('registrationData')
+      setHasRegistrationData(!!storedData)
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    // Also listen for custom event from RegistrationPage
+    window.addEventListener('registrationUpdated', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('registrationUpdated', handleStorageChange)
+    }
   }, [])
 
   const toggleConsole = () => {
@@ -62,7 +87,9 @@ function App() {
     <>
       {!isSignedIn && (
         <>
-          {!isConsole && <RegistrationPage />}
+          {!isConsole && (
+            hasRegistrationData ? <UserInfoPage /> : <RegistrationPage />
+          )}
           {isConsole && <LoginPage />}
         </>
       )}

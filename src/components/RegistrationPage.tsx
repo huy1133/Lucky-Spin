@@ -16,7 +16,6 @@ function RegistrationPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isLocked, setIsLocked] = useState<boolean>(false)
   const [lookupEmail, setLookupEmail] = useState<string>('')
-  const [lookupResult, setLookupResult] = useState<LookupResult | null>(null)
   const [isLookingUp, setIsLookingUp] = useState<boolean>(false)
   const [showLookupModal, setShowLookupModal] = useState<boolean>(false)
 
@@ -84,10 +83,22 @@ function RegistrationPage() {
         }
       }
 
+      const timestamp = Date.now()
       await set(numberRef, {
         email: emailTrimmed,
-        timestamp: Date.now(),
+        timestamp: timestamp,
       })
+
+      // Save registration data to local storage
+      const registrationData = {
+        email: emailTrimmed,
+        luckyNumber: numberTrimmed,
+        timestamp: timestamp,
+      }
+      localStorage.setItem('registrationData', JSON.stringify(registrationData))
+      
+      // Dispatch custom event to notify App.tsx about the update
+      window.dispatchEvent(new Event('registrationUpdated'))
 
       setMessage(`Đăng ký thành công với email ${emailTrimmed} và số may mắn ${numberTrimmed}!`)
       setEmail('')
@@ -155,9 +166,21 @@ function RegistrationPage() {
       }
 
       if (found) {
-        setLookupResult(found)
+        // Save registration data to local storage
+        const registrationData = {
+          email: found.email,
+          luckyNumber: found.luckyNumber,
+          timestamp: found.timestamp,
+        }
+        localStorage.setItem('registrationData', JSON.stringify(registrationData))
+        
+        // Dispatch custom event to notify App.tsx about the update
+        window.dispatchEvent(new Event('registrationUpdated'))
+        
+        // Close modal and clear form
         setShowLookupModal(false)
         setLookupEmail('')
+        setMessage('')
       } else {
         setMessage('Không tìm thấy thông tin đăng ký với email này')
       }
@@ -169,26 +192,11 @@ function RegistrationPage() {
     }
   }
 
-  const formatDate = (timestamp: number): string => {
-    const date = new Date(timestamp)
-    return date.toLocaleString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  }
-
-  const handleCloseLookupPopup = () => {
-    setLookupResult(null)
-  }
 
   return (
     <div className="signed-out-page">
       <form className="registration-form" onSubmit={handleSubmit}>
-        <h2 className="form-title">Đăng ký may mắn</h2>
+        <h2 className="form-title">Đăng ký số may mắn</h2>
         {isLocked && (
           <div className="form-error" style={{ textAlign: 'center', marginBottom: '8px' }}>
             ⚠️ Danh sách đăng ký đang bị khóa. Vui lòng thử lại sau!
@@ -300,35 +308,6 @@ function RegistrationPage() {
         </div>
       )}
 
-      {/* Lookup Result Popup */}
-      {lookupResult && (
-        <div className="lookup-modal-overlay" onClick={handleCloseLookupPopup}>
-          <div className="lookup-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="lookup-modal-content">
-              <h3 className="lookup-modal-title">Thông tin đã đăng ký</h3>
-              <div className="lookup-result-info">
-                <div className="lookup-result-item">
-                  <span className="lookup-result-label">Email:</span>
-                  <span className="lookup-result-value">{lookupResult.email}</span>
-                </div>
-                <div className="lookup-result-item">
-                  <span className="lookup-result-label">Số may mắn:</span>
-                  <span className="lookup-result-value">{lookupResult.luckyNumber}</span>
-                </div>
-                <div className="lookup-result-item">
-                  <span className="lookup-result-label">Thời gian đăng ký:</span>
-                  <span className="lookup-result-value">{formatDate(lookupResult.timestamp)}</span>
-                </div>
-              </div>
-              <div className="lookup-modal-buttons">
-                <button className="lookup-submit-button" onClick={handleCloseLookupPopup}>
-                  Đóng
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
