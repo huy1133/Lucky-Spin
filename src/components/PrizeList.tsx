@@ -65,6 +65,14 @@ function PrizeList({ nextSpin }: PrizeListProps) {
 
   const [showSettings, setShowSettings] = useState<boolean>(false)
   const [tempPrizeCounts, setTempPrizeCounts] = useState<PrizeCounts>(prizeCounts)
+  const [spinConfig, setSpinConfig] = useState<{ duration: number; turns: number }>({
+    duration: 20000,
+    turns: 15
+  })
+  const [tempSpinConfig, setTempSpinConfig] = useState<{ duration: number; turns: number }>({
+    duration: 20000,
+    turns: 15
+  })
   const hasLoadedWinnersRef = useRef<boolean>(false)
 
   // Thứ tự hiển thị từ cao xuống thấp (tháp)
@@ -232,8 +240,28 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     }
   }, [])
 
+  // Load spinConfig từ Firebase
+  useEffect(() => {
+    if (!db) return
+
+    const spinConfigRef = ref(db, 'settings/spinConfig')
+    
+    const unsubscribe = onValue(spinConfigRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        setSpinConfig({
+          duration: data.duration || 20000,
+          turns: data.turns || 15
+        })
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
   const handleOpenSettings = () => {
     setTempPrizeCounts({ ...prizeCounts })
+    setTempSpinConfig({ ...spinConfig })
     setShowSettings(true)
   }
 
@@ -254,7 +282,8 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     }
   }
 
-  const handleSaveSettings = async () => {
+  // Lưu thông tin giải thưởng riêng
+  const handleSavePrizeSettings = async () => {
     if (!db) {
       console.error('Firebase database not available')
       return
@@ -284,10 +313,35 @@ function PrizeList({ nextSpin }: PrizeListProps) {
       setPrizeCounts({ ...tempPrizeCounts })
       setPrizeWinners(resetWinners)
       
-      setShowSettings(false)
+      alert('Đã lưu cài đặt giải thưởng thành công!')
     } catch (error) {
       console.error('Error saving prize counts to Firebase:', error)
-      alert('Có lỗi xảy ra khi lưu cài đặt. Vui lòng thử lại.')
+      alert('Có lỗi xảy ra khi lưu cài đặt giải thưởng. Vui lòng thử lại.')
+    }
+  }
+
+  // Lưu thông tin vòng quay riêng
+  const handleSaveSpinConfig = async () => {
+    if (!db) {
+      console.error('Firebase database not available')
+      return
+    }
+
+    try {
+      // Lưu spinConfig lên Firebase
+      const spinConfigRef = ref(db, 'settings/spinConfig')
+      await set(spinConfigRef, {
+        duration: tempSpinConfig.duration,
+        turns: tempSpinConfig.turns
+      })
+      
+      // Cập nhật state local
+      setSpinConfig({ ...tempSpinConfig })
+      
+      alert('Đã lưu cài đặt vòng quay thành công!')
+    } catch (error) {
+      console.error('Error saving spin config to Firebase:', error)
+      alert('Có lỗi xảy ra khi lưu cài đặt vòng quay. Vui lòng thử lại.')
     }
   }
 
@@ -296,6 +350,14 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     setTempPrizeCounts({
       ...tempPrizeCounts,
       [prize]: value
+    })
+  }
+
+  const handleSpinConfigChange = (field: 'duration' | 'turns', value: number) => {
+    if (value < 0) return
+    setTempSpinConfig({
+      ...tempSpinConfig,
+      [field]: value
     })
   }
 
@@ -435,13 +497,113 @@ function PrizeList({ nextSpin }: PrizeListProps) {
                   </div>
                 </div>
               ))}
+              
+              {/* Nút lưu riêng cho giải thưởng */}
+              <div style={{ 
+                marginTop: '16px', 
+                display: 'flex', 
+                gap: '12px', 
+                justifyContent: 'flex-end' 
+              }}>
+                <button 
+                  className="prize-settings-save" 
+                  onClick={handleSavePrizeSettings}
+                  style={{ fontSize: '14px', padding: '8px 16px' }}
+                >
+                  Lưu cài đặt giải thưởng
+                </button>
+              </div>
+              
+              {/* Phần cài đặt vòng quay */}
+              <div style={{ 
+                marginTop: '24px', 
+                paddingTop: '24px', 
+                borderTop: '2px solid #e0e0e0' 
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 16px 0', 
+                  fontSize: '16px', 
+                  fontWeight: 700, 
+                  color: '#333' 
+                }}>
+                  Cài đặt vòng quay
+                </h4>
+                
+                <div className="prize-setting-item">
+                  <label className="prize-setting-label">Thời gian quay (ms)</label>
+                  <div className="prize-setting-controls">
+                    <button
+                      className="prize-setting-button"
+                      onClick={() => handleSpinConfigChange('duration', tempSpinConfig.duration - 1000)}
+                      disabled={tempSpinConfig.duration <= 1000}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      className="prize-setting-input"
+                      style={{ width: '100px' }}
+                      value={tempSpinConfig.duration}
+                      onChange={(e) => handleSpinConfigChange('duration', parseInt(e.target.value) || 1000)}
+                      min="1000"
+                      step="1000"
+                    />
+                    <button
+                      className="prize-setting-button"
+                      onClick={() => handleSpinConfigChange('duration', tempSpinConfig.duration + 1000)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="prize-setting-item">
+                  <label className="prize-setting-label">Số vòng quay</label>
+                  <div className="prize-setting-controls">
+                    <button
+                      className="prize-setting-button"
+                      onClick={() => handleSpinConfigChange('turns', tempSpinConfig.turns - 1)}
+                      disabled={tempSpinConfig.turns <= 1}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      className="prize-setting-input"
+                      style={{ width: '100px' }}
+                      value={tempSpinConfig.turns}
+                      onChange={(e) => handleSpinConfigChange('turns', parseInt(e.target.value) || 1)}
+                      min="1"
+                    />
+                    <button
+                      className="prize-setting-button"
+                      onClick={() => handleSpinConfigChange('turns', tempSpinConfig.turns + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Nút lưu riêng cho vòng quay */}
+                <div style={{ 
+                  marginTop: '16px', 
+                  display: 'flex', 
+                  gap: '12px', 
+                  justifyContent: 'flex-end' 
+                }}>
+                  <button 
+                    className="prize-settings-save" 
+                    onClick={handleSaveSpinConfig}
+                    style={{ fontSize: '14px', padding: '8px 16px' }}
+                  >
+                    Lưu cài đặt vòng quay
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="prize-settings-footer">
               <button className="prize-settings-cancel" onClick={handleCloseSettings}>
-                Hủy
-              </button>
-              <button className="prize-settings-save" onClick={handleSaveSettings}>
-                Lưu
+                Đóng
               </button>
             </div>
           </div>

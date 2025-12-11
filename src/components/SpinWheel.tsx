@@ -4,10 +4,9 @@ import { ref, onValue, get, set } from 'firebase/database'
 import { db } from '../firebase'
 import Confetti from './Confetti'
 
-// Spin duration in milliseconds - adjust this to control total spin time
-const SPIN_DURATION = 12000 // 12s mặc định, chỉnh theo ý bạn
-// Số vòng quay cơ bản (có thêm ngẫu nhiên nhẹ ở cuối)
-const SPIN_TURNS = 8 // số vòng quay toàn phần
+// Giá trị mặc định (sẽ được cập nhật từ Firebase)
+const DEFAULT_SPIN_DURATION = 20000 
+const DEFAULT_SPIN_TURNS = 15
 
 interface NextSpinInfo {
   prize: string | null
@@ -27,6 +26,10 @@ function SpinWheel({ setNextSpin }: SpinWheelProps) {
   const [isSpinning, setIsSpinning] = useState<boolean>(false)
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
   const [showConfetti, setShowConfetti] = useState<boolean>(false)
+  const [spinConfig, setSpinConfig] = useState<{ duration: number; turns: number }>({
+    duration: DEFAULT_SPIN_DURATION,
+    turns: DEFAULT_SPIN_TURNS
+  })
   const rotationRef = useRef<number>(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
   const nextSpinIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -392,6 +395,31 @@ function SpinWheel({ setNextSpin }: SpinWheelProps) {
     return () => unsubscribe()
   }, [])
 
+  // Load spinConfig từ Firebase
+  useEffect(() => {
+    if (!db) return
+
+    const spinConfigRef = ref(db, 'settings/spinConfig')
+    
+    const unsubscribe = onValue(spinConfigRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        setSpinConfig({
+          duration: data.duration || DEFAULT_SPIN_DURATION,
+          turns: data.turns || DEFAULT_SPIN_TURNS
+        })
+      } else {
+        // Sử dụng giá trị mặc định nếu chưa có trong Firebase
+        setSpinConfig({
+          duration: DEFAULT_SPIN_DURATION,
+          turns: DEFAULT_SPIN_TURNS
+        })
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
   const handleSpin = async () => {
     if (luckyNumbers.length === 0 || isSpinning) return
     
@@ -402,12 +430,12 @@ function SpinWheel({ setNextSpin }: SpinWheelProps) {
     
     // Spin configuration: base turns + random offset
     const randomOffset = Math.random() * 2 * Math.PI // thêm góc ngẫu nhiên để không đoán trước
-    const totalTurns = SPIN_TURNS + Math.random() * 1.5 // thêm tối đa ~1.5 vòng ngẫu nhiên
+    const totalTurns = spinConfig.turns + Math.random() * 1.5 // thêm tối đa ~1.5 vòng ngẫu nhiên
     const finalRotation = rotationRef.current - (totalTurns * 2 * Math.PI + randomOffset)
     
     // Animate to final position
     const startRotation = rotationRef.current
-    const duration = SPIN_DURATION
+    const duration = spinConfig.duration
     const startTime = Date.now()
 
       const animateSpin = () => {

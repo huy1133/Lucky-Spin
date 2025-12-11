@@ -832,30 +832,38 @@
 .switch-button {
   padding: 12px 24px;
   font-size: 16px;
-  font-weight: bold;
-  border: 2px solid #333;
-  border-radius: 8px;
+  font-weight: 700;
+  border: none;
+  border-radius: 30px;
   cursor: pointer;
-  background-color: #fff;
-  color: #000;
+  background-color: #ffffff;
+  color: #e53935;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .switch-button:hover {
-  background-color: #333;
-  color: #fff;
+  background-color: #fbe9e7;
+  color: #e53935;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(229, 57, 53, 0.3);
+}
+
+.switch-button:active {
+  transform: translateY(0);
 }
 
 .signed-in-page .switch-button {
-  background-color: #fff;
-  color: #000;
-  border-color: #fff;
+  background-color: #ffffff;
+  color: #e53935;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .signed-in-page .switch-button:hover {
-  background-color: #333;
-  color: #fff;
-  border-color: #333;
+  background-color: #fbe9e7;
+  color: #e53935;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(229, 57, 53, 0.3);
 }
 
 .logout-button {
