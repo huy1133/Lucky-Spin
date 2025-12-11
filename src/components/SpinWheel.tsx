@@ -1,22 +1,39 @@
 import { useEffect, useRef, useState } from 'react'
 import '../App.css'
-import { ref, onValue } from 'firebase/database'
+import { ref, onValue, get, set } from 'firebase/database'
 import { db } from '../firebase'
 import Confetti from './Confetti'
 
-// Spin duration in milliseconds - adjust this to control total spin time
-const SPIN_DURATION = 12000 // 12s mặc định, chỉnh theo ý bạn
-// Số vòng quay cơ bản (có thêm ngẫu nhiên nhẹ ở cuối)
-const SPIN_TURNS = 8 // số vòng quay toàn phần
+// Giá trị mặc định (sẽ được cập nhật từ Firebase)
+const DEFAULT_SPIN_DURATION = 20000 
+const DEFAULT_SPIN_TURNS = 15
 
-function SpinWheel() {
+interface NextSpinInfo {
+  prize: string | null
+  index: number | null
+  number: string
+}
+
+interface SpinWheelProps {
+  nextSpin: NextSpinInfo
+  setNextSpin: (info: NextSpinInfo) => void
+}
+
+function SpinWheel({ setNextSpin }: SpinWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [luckyNumbers, setLuckyNumbers] = useState<string[]>([])
+  const [shuffledNumbers, setShuffledNumbers] = useState<string[]>([]) // Thứ tự hiển thị trên bánh xe (có thể xáo trộn)
   const [isSpinning, setIsSpinning] = useState<boolean>(false)
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
   const [showConfetti, setShowConfetti] = useState<boolean>(false)
+  const [spinConfig, setSpinConfig] = useState<{ duration: number; turns: number }>({
+    duration: DEFAULT_SPIN_DURATION,
+    turns: DEFAULT_SPIN_TURNS
+  })
   const rotationRef = useRef<number>(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
+  const nextSpinIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prizeWinnersRef = useRef<any>(null)
 
   // Load lucky numbers from Firebase
   useEffect(() => {
@@ -29,18 +46,40 @@ function SpinWheel() {
         const data = snapshot.val()
         const numbers = Object.keys(data).sort((a, b) => parseInt(a) - parseInt(b))
         setLuckyNumbers(numbers)
+        setShuffledNumbers([...numbers]) // Khởi tạo thứ tự hiển thị
       } else {
         setLuckyNumbers([])
+        setShuffledNumbers([])
+        stopNextSpinAnimation()
       }
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      stopNextSpinAnimation()
+    }
   }, [])
+
+  // Tự động bắt đầu animation khi có số may mắn và không đang quay
+  useEffect(() => {
+    if (!db || isSpinning || luckyNumbers.length === 0) return
+
+    // Kiểm tra xem đã có animation đang chạy chưa
+    if (nextSpinIntervalRef.current) return
+
+    // Bắt đầu animation cho số đầu tiên
+    startNextSpinAnimation()
+
+    return () => {
+      // Cleanup khi component unmount hoặc dependencies thay đổi
+      stopNextSpinAnimation()
+    }
+  }, [luckyNumbers, isSpinning])
 
   // Draw wheel and lights
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || luckyNumbers.length === 0) return
+    if (!canvas || shuffledNumbers.length === 0) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -58,9 +97,9 @@ function SpinWheel() {
       ctx.clearRect(0, 0, size, size)
 
       // Add empty segment if count is odd to maintain color alternation
-      const displayNumbers = luckyNumbers.length % 2 === 1 
-        ? [...luckyNumbers, ''] 
-        : luckyNumbers
+      const displayNumbers = shuffledNumbers.length % 2 === 1 
+        ? [...shuffledNumbers, ''] 
+        : shuffledNumbers
       const segmentCount = displayNumbers.length || 1
       const anglePerSegment = (2 * Math.PI) / segmentCount
 
@@ -178,21 +217,225 @@ function SpinWheel() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [luckyNumbers, isSpinning])
+  }, [shuffledNumbers, isSpinning])
 
-  const handleSpin = () => {
+  // Hàm bắt đầu hiệu ứng nhảy số cho số sắp quay
+  const startNextSpinAnimation = async () => {
+    if (!db) return
+
+    // Lấy dữ liệu từ DB
+    const prizeCountsRef = ref(db, 'settings/prizeCounts')
+    const prizeWinnersDbRef = ref(db, 'settings/prizeWinners')
+    
+    const [countsSnapshot, winnersSnapshot] = await Promise.all([
+      get(prizeCountsRef),
+      get(prizeWinnersDbRef)
+    ])
+
+    if (!countsSnapshot.exists()) {
+      setNextSpin({ prize: null, index: null, number: '' })
+      return
+    }
+
+    const prizeCounts = countsSnapshot.val()
+    const prizeWinnersData = winnersSnapshot.exists() ? winnersSnapshot.val() : {
+      special: [],
+      first: [],
+      second: [],
+      third: [],
+      consolation: []
+    }
+    
+    prizeWinnersRef.current = prizeWinnersData
+
+    // Tìm giải và ô tiếp theo cần quay
+    const prizeOrder = ['consolation', 'third', 'second', 'first', 'special']
+    let nextSlot: { prize: string; index: number } | null = null
+
+    for (const prizeKey of prizeOrder) {
+      const count = prizeCounts[prizeKey] || 0
+      if (count === 0) continue
+
+      const winners = prizeWinnersData[prizeKey] || []
+      
+      // Tìm vị trí trống đầu tiên
+      for (let i = 0; i < count; i++) {
+        if (!winners[i]) {
+          nextSlot = { prize: prizeKey, index: i }
+          break
+        }
+      }
+      
+      if (nextSlot) break
+    }
+
+    if (!nextSlot) {
+      setNextSpin({ prize: null, index: null, number: '' })
+      return
+    }
+
+    // Sử dụng tất cả các số may mắn (cho phép số đã quay được chọn lại)
+    const availableNumbers = luckyNumbers
+    if (availableNumbers.length === 0) {
+      setNextSpin({ prize: null, index: null, number: '' })
+      return
+    }
+
+    // Hiệu ứng nhảy số - nhảy ngẫu nhiên giữa tất cả các số
+    nextSpinIntervalRef.current = setInterval(async () => {
+      // Lấy lại dữ liệu từ DB để đảm bảo có dữ liệu mới nhất
+      const prizeCountsRef = ref(db, 'settings/prizeCounts')
+      const prizeWinnersDbRef = ref(db, 'settings/prizeWinners')
+      
+      const [countsSnapshot, winnersSnapshot] = await Promise.all([
+        get(prizeCountsRef),
+        get(prizeWinnersDbRef)
+      ])
+
+      if (!countsSnapshot.exists()) {
+        setNextSpin({ prize: null, index: null, number: '' })
+        if (nextSpinIntervalRef.current) {
+          clearInterval(nextSpinIntervalRef.current)
+          nextSpinIntervalRef.current = null
+        }
+        return
+      }
+
+      const prizeCounts = countsSnapshot.val()
+      const currentPrizeWinners = winnersSnapshot.exists() ? winnersSnapshot.val() : {
+        special: [],
+        first: [],
+        second: [],
+        third: [],
+        consolation: []
+      }
+      
+      prizeWinnersRef.current = currentPrizeWinners
+      
+      // Tìm giải và ô tiếp theo cần quay (từ DB)
+      const prizeOrder = ['consolation', 'third', 'second', 'first', 'special']
+      let currentNextSlot: { prize: string; index: number } | null = null
+      
+      for (const prizeKey of prizeOrder) {
+        const count = prizeCounts[prizeKey] || 0
+        if (count === 0) continue
+        
+        const winners = currentPrizeWinners[prizeKey] || []
+        for (let i = 0; i < count; i++) {
+          if (!winners[i]) {
+            currentNextSlot = { prize: prizeKey, index: i }
+            break
+          }
+        }
+        if (currentNextSlot) break
+      }
+      
+      if (!currentNextSlot) {
+        setNextSpin({ prize: null, index: null, number: '' })
+        if (nextSpinIntervalRef.current) {
+          clearInterval(nextSpinIntervalRef.current)
+          nextSpinIntervalRef.current = null
+        }
+        return
+      }
+      
+      // Sử dụng tất cả các số may mắn (cho phép số đã quay được chọn lại)
+      const currentAvailableNumbers = luckyNumbers
+      
+      if (currentAvailableNumbers.length === 0) {
+        setNextSpin({ prize: null, index: null, number: '' })
+        if (nextSpinIntervalRef.current) {
+          clearInterval(nextSpinIntervalRef.current)
+          nextSpinIntervalRef.current = null
+        }
+        return
+      }
+      
+      // Nhảy ngẫu nhiên giữa tất cả các số
+      const randomIndex = Math.floor(Math.random() * currentAvailableNumbers.length)
+      const randomNumber = currentAvailableNumbers[randomIndex]
+      
+      setNextSpin({
+        prize: currentNextSlot.prize,
+        index: currentNextSlot.index,
+        number: randomNumber
+      })
+    }, 100) // Nhảy mỗi 100ms
+  }
+
+  // Dừng hiệu ứng nhảy số
+  const stopNextSpinAnimation = () => {
+    if (nextSpinIntervalRef.current) {
+      clearInterval(nextSpinIntervalRef.current)
+      nextSpinIntervalRef.current = null
+    }
+    setNextSpin({ prize: null, index: null, number: '' })
+  }
+  
+  // Load prizeWinners để cập nhật ref
+  useEffect(() => {
+    if (!db) return
+
+    const prizeWinnersDbRef = ref(db, 'settings/prizeWinners')
+    
+    const unsubscribe = onValue(prizeWinnersDbRef, (snapshot) => {
+      if (snapshot.exists()) {
+        prizeWinnersRef.current = snapshot.val()
+      } else {
+        prizeWinnersRef.current = {
+          special: [],
+          first: [],
+          second: [],
+          third: [],
+          consolation: []
+        }
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Load spinConfig từ Firebase
+  useEffect(() => {
+    if (!db) return
+
+    const spinConfigRef = ref(db, 'settings/spinConfig')
+    
+    const unsubscribe = onValue(spinConfigRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        setSpinConfig({
+          duration: data.duration || DEFAULT_SPIN_DURATION,
+          turns: data.turns || DEFAULT_SPIN_TURNS
+        })
+      } else {
+        // Sử dụng giá trị mặc định nếu chưa có trong Firebase
+        setSpinConfig({
+          duration: DEFAULT_SPIN_DURATION,
+          turns: DEFAULT_SPIN_TURNS
+        })
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  const handleSpin = async () => {
     if (luckyNumbers.length === 0 || isSpinning) return
+    
+    // Dừng animation nhảy số
+    await stopNextSpinAnimation()
     
     setIsSpinning(true)
     
     // Spin configuration: base turns + random offset
     const randomOffset = Math.random() * 2 * Math.PI // thêm góc ngẫu nhiên để không đoán trước
-    const totalTurns = SPIN_TURNS + Math.random() * 1.5 // thêm tối đa ~1.5 vòng ngẫu nhiên
+    const totalTurns = spinConfig.turns + Math.random() * 1.5 // thêm tối đa ~1.5 vòng ngẫu nhiên
     const finalRotation = rotationRef.current - (totalTurns * 2 * Math.PI + randomOffset)
     
     // Animate to final position
     const startRotation = rotationRef.current
-    const duration = SPIN_DURATION
+    const duration = spinConfig.duration
     const startTime = Date.now()
 
       const animateSpin = () => {
@@ -217,9 +460,9 @@ function SpinWheel() {
       const radius = size / 2 - 40
 
       // Add empty segment if count is odd to maintain color alternation
-      const displayNumbers = luckyNumbers.length % 2 === 1 
-        ? [...luckyNumbers, ''] 
-        : luckyNumbers
+      const displayNumbers = shuffledNumbers.length % 2 === 1 
+        ? [...shuffledNumbers, ''] 
+        : shuffledNumbers
       const segmentCount = displayNumbers.length || 1
       const anglePerSegment = (2 * Math.PI) / segmentCount
 
@@ -328,9 +571,9 @@ function SpinWheel() {
         setIsSpinning(false)
         
         // Calculate which number is selected (pointer is at top, angle = -Math.PI/2)
-        const displayNumbers = luckyNumbers.length % 2 === 1 
-          ? [...luckyNumbers, ''] 
-          : luckyNumbers
+        const displayNumbers = shuffledNumbers.length % 2 === 1 
+          ? [...shuffledNumbers, ''] 
+          : shuffledNumbers
         const segmentCount = displayNumbers.length || 1
         const anglePerSegment = (2 * Math.PI) / segmentCount
         
@@ -371,6 +614,15 @@ function SpinWheel() {
         if (winner && winner !== '') {
           setSelectedNumber(winner)
           setShowConfetti(true)
+          
+          // Cập nhật số vào giải thưởng
+          updatePrizeWithNumber(winner).then(() => {
+            // Bắt đầu animation cho số tiếp theo
+            setTimeout(() => {
+              startNextSpinAnimation()
+            }, 500)
+          })
+          
           // Hide confetti after 3 seconds
           setTimeout(() => {
             setShowConfetti(false)
@@ -386,6 +638,100 @@ function SpinWheel() {
     setSelectedNumber(null)
   }
 
+  // Hàm xáo trộn thứ tự các số trên bánh xe
+  const handleShuffle = () => {
+    if (shuffledNumbers.length === 0) return
+    
+    // Tạo bản sao và xáo trộn ngẫu nhiên (Fisher-Yates shuffle)
+    const shuffled = [...shuffledNumbers]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    
+    // Reset rotation về 0 để bánh xe vẽ lại từ đầu với thứ tự mới
+    rotationRef.current = 0
+    
+    // Cập nhật state để trigger re-render và vẽ lại bánh xe
+    setShuffledNumbers(shuffled)
+  }
+
+  // Hàm cập nhật số vào giải thưởng
+  const updatePrizeWithNumber = async (number: string) => {
+    if (!db) return
+
+    try {
+      // Lấy dữ liệu giải thưởng từ Firebase
+      const prizeCountsRef = ref(db, 'settings/prizeCounts')
+      const prizeWinnersDbRef = ref(db, 'settings/prizeWinners')
+      
+      const [countsSnapshot, winnersSnapshot] = await Promise.all([
+        get(prizeCountsRef),
+        get(prizeWinnersDbRef)
+      ])
+
+      if (!countsSnapshot.exists()) return
+
+      const prizeCounts = countsSnapshot.val()
+      const prizeWinners = winnersSnapshot.exists() ? winnersSnapshot.val() : {
+        special: [],
+        first: [],
+        second: [],
+        third: [],
+        consolation: []
+      }
+
+      // Mapping từ tiếng Anh sang thứ tự (từ thấp đến cao)
+      const prizeOrder = [
+        { key: 'consolation', name: 'Giải khuyến khích' },
+        { key: 'third', name: 'Giải ba' },
+        { key: 'second', name: 'Giải nhì' },
+        { key: 'first', name: 'Giải nhất' },
+        { key: 'special', name: 'Giải đặc biệt' }
+      ]
+
+      // Tìm giải đầu tiên còn trống (từ thấp đến cao)
+      let found = false
+      for (const prize of prizeOrder) {
+        const count = prizeCounts[prize.key] || 0
+        if (count === 0) continue
+
+        const winners = prizeWinners[prize.key] || []
+        
+        // Tìm vị trí trống đầu tiên
+        for (let i = 0; i < count; i++) {
+          if (!winners[i]) {
+            // Cập nhật số vào vị trí này
+            const newWinners = [...winners]
+            while (newWinners.length <= i) {
+              newWinners.push(null)
+            }
+            newWinners[i] = number
+            
+            prizeWinners[prize.key] = newWinners
+            
+            // Cập nhật ref để animation có thể tiếp tục với danh sách mới
+            prizeWinnersRef.current = prizeWinners
+            
+            // Lưu lên Firebase
+            await set(prizeWinnersDbRef, prizeWinners)
+            found = true
+            console.log(`Đã thêm số ${number} vào ${prize.name} - vị trí ${i + 1}`)
+            break
+          }
+        }
+        
+        if (found) break
+      }
+
+      if (!found) {
+        console.log('Không còn vị trí trống trong các giải thưởng')
+      }
+    } catch (error) {
+      console.error('Error updating prize with number:', error)
+    }
+  }
+
   return (
     <>
       <Confetti active={showConfetti} />
@@ -393,13 +739,22 @@ function SpinWheel() {
         <div className="spin-wheel-container">
           <canvas ref={canvasRef} className="spin-wheel-canvas" />
           {luckyNumbers.length > 0 && (
-            <button
-              className="spin-button"
-              onClick={handleSpin}
-              disabled={isSpinning}
-            >
-              {isSpinning ? 'Đang quay...' : 'Quay số may mắn'}
-            </button>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <button
+                className="spin-button"
+                onClick={handleSpin}
+                disabled={isSpinning}
+              >
+                {isSpinning ? 'Đang quay...' : 'Quay số may mắn'}
+              </button>
+              <button
+                className="spin-button"
+                onClick={handleShuffle}
+                disabled={isSpinning}
+              >
+                Xáo số
+              </button>
+            </div>
           )}
           {luckyNumbers.length === 0 && (
             <div className="spin-wheel-empty">Chưa có số may mắn để quay</div>
