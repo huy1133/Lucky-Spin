@@ -1,4 +1,4 @@
-import { type FormEvent, useState, useEffect } from 'react'
+import { type FormEvent, useState, useEffect, useRef } from 'react'
 import '../App.css'
 import { ref, get, set, onValue } from 'firebase/database'
 import { db } from '../firebase'
@@ -9,6 +9,8 @@ interface LookupResult {
   timestamp: number
 }
 
+const EMAIL_SUGGESTION_DOMAIN = '@rikkeisoft.com'
+
 function RegistrationPage() {
   const [email, setEmail] = useState<string>('')
   const [luckyNumber, setLuckyNumber] = useState<string>('')
@@ -18,6 +20,10 @@ function RegistrationPage() {
   const [lookupEmail, setLookupEmail] = useState<string>('')
   const [isLookingUp, setIsLookingUp] = useState<boolean>(false)
   const [showLookupModal, setShowLookupModal] = useState<boolean>(false)
+  const [showEmailSuggestion, setShowEmailSuggestion] = useState<boolean>(false)
+  const [showLookupEmailSuggestion, setShowLookupEmailSuggestion] = useState<boolean>(false)
+  const emailInputRef = useRef<HTMLInputElement>(null)
+  const lookupEmailInputRef = useRef<HTMLInputElement>(null)
 
   // Load locked status from Firebase
   useEffect(() => {
@@ -35,6 +41,47 @@ function RegistrationPage() {
 
     return () => unsubscribe()
   }, [])
+
+  // Helper function to check if email should show suggestion
+  const shouldShowSuggestion = (emailValue: string): boolean => {
+    if (!emailValue || emailValue.includes('@')) {
+      return false
+    }
+    return true
+  }
+
+  // Helper function to get suggested email
+  const getSuggestedEmail = (emailValue: string): string => {
+    return emailValue + EMAIL_SUGGESTION_DOMAIN
+  }
+
+  // Handle email input change for registration form
+  const handleEmailChange = (value: string) => {
+    setEmail(value)
+    setShowEmailSuggestion(shouldShowSuggestion(value))
+  }
+
+  // Handle lookup email input change
+  const handleLookupEmailChange = (value: string) => {
+    setLookupEmail(value)
+    setShowLookupEmailSuggestion(shouldShowSuggestion(value))
+  }
+
+  // Apply email suggestion
+  const applyEmailSuggestion = () => {
+    if (showEmailSuggestion && email) {
+      setEmail(getSuggestedEmail(email))
+      setShowEmailSuggestion(false)
+    }
+  }
+
+  // Apply lookup email suggestion
+  const applyLookupEmailSuggestion = () => {
+    if (showLookupEmailSuggestion && lookupEmail) {
+      setLookupEmail(getSuggestedEmail(lookupEmail))
+      setShowLookupEmailSuggestion(false)
+    }
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -115,12 +162,14 @@ function RegistrationPage() {
     setShowLookupModal(true)
     setLookupEmail('')
     setMessage('')
+    setShowLookupEmailSuggestion(false)
   }
 
   const handleCloseLookupModal = () => {
     setShowLookupModal(false)
     setLookupEmail('')
     setMessage('')
+    setShowLookupEmailSuggestion(false)
   }
 
   const handleLookup = async () => {
@@ -206,16 +255,63 @@ function RegistrationPage() {
           <label htmlFor="email" className="form-label">
             Email
           </label>
-          <input
-            id="email"
-            type="email"
-            className="form-input"
-            placeholder="Nhập email của bạn"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isLocked}
-            required
-          />
+          <div style={{ position: 'relative', width: '100%' }}>
+            <input
+              ref={emailInputRef}
+              id="email"
+              type="email"
+              className="form-input"
+              placeholder="Nhập email của bạn"
+              value={email}
+              onChange={(e) => handleEmailChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && showEmailSuggestion) {
+                  e.preventDefault()
+                  applyEmailSuggestion()
+                } else if (e.key === 'Tab' && showEmailSuggestion) {
+                  e.preventDefault()
+                  applyEmailSuggestion()
+                }
+              }}
+              onBlur={() => {
+                // Hide suggestion when input loses focus
+                setTimeout(() => setShowEmailSuggestion(false), 200)
+              }}
+              disabled={isLocked}
+              required
+            />
+            {showEmailSuggestion && email && (
+              <div
+                className="email-suggestion"
+                onClick={applyEmailSuggestion}
+                onMouseDown={(e) => e.preventDefault()}
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: '#f0f0f0',
+                  border: '1px solid #ccc',
+                  borderTop: 'none',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  zIndex: 1000,
+                  borderRadius: '0 0 4px 4px',
+                  fontSize: '14px',
+                  color: '#666',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e0e0e0'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f0f0f0'
+                }}
+              >
+                {getSuggestedEmail(email)}
+              </div>
+            )}
+          </div>
         </div>
         <div className="form-group">
           <label htmlFor="luckyNumber" className="form-label">
@@ -265,20 +361,66 @@ function RegistrationPage() {
                 <label htmlFor="lookupEmail" className="form-label">
                   Email
                 </label>
-                <input
-                  id="lookupEmail"
-                  type="email"
-                  className="form-input"
-                  placeholder="Nhập email để tra cứu"
-                  value={lookupEmail}
-                  onChange={(e) => setLookupEmail(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleLookup()
-                    }
-                  }}
-                  autoFocus
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    ref={lookupEmailInputRef}
+                    id="lookupEmail"
+                    type="email"
+                    className="form-input"
+                    placeholder="Nhập email để tra cứu"
+                    value={lookupEmail}
+                    onChange={(e) => handleLookupEmailChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (showLookupEmailSuggestion) {
+                          e.preventDefault()
+                          applyLookupEmailSuggestion()
+                        } else {
+                          handleLookup()
+                        }
+                      } else if (e.key === 'Tab' && showLookupEmailSuggestion) {
+                        e.preventDefault()
+                        applyLookupEmailSuggestion()
+                      }
+                    }}
+                    onBlur={() => {
+                      // Hide suggestion when input loses focus
+                      setTimeout(() => setShowLookupEmailSuggestion(false), 200)
+                    }}
+                    autoFocus
+                  />
+                  {showLookupEmailSuggestion && lookupEmail && (
+                    <div
+                      className="email-suggestion"
+                      onClick={applyLookupEmailSuggestion}
+                      onMouseDown={(e) => e.preventDefault()}
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        backgroundColor: '#f0f0f0',
+                        border: '1px solid #ccc',
+                        borderTop: 'none',
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        zIndex: 1000,
+                        borderRadius: '0 0 4px 4px',
+                        fontSize: '14px',
+                        color: '#666',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#e0e0e0'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f0f0f0'
+                      }}
+                    >
+                      {getSuggestedEmail(lookupEmail)}
+                    </div>
+                  )}
+                </div>
               </div>
               {message && !message.includes('thành công') && (
                 <p className="lookup-error-message">
