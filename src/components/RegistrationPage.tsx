@@ -25,6 +25,26 @@ function RegistrationPage() {
   const emailInputRef = useRef<HTMLInputElement>(null)
   const lookupEmailInputRef = useRef<HTMLInputElement>(null)
 
+  const [listDefaultMails, setListDefaultMails] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!db) return
+  
+    const defaultMailsRef = ref(db, 'settings/defaultMails')
+  
+    const unsubscribe = onValue(defaultMailsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        setListDefaultMails(Object.values(data))
+      } else {
+        setListDefaultMails([])
+      }
+    })
+  
+    return () => unsubscribe()
+  }, [])
+  
+
   // Load locked status from Firebase
   useEffect(() => {
     if (!db) return
@@ -52,7 +72,11 @@ function RegistrationPage() {
 
   // Helper function to get suggested email
   const getSuggestedEmail = (emailValue: string): string => {
-    return emailValue + EMAIL_SUGGESTION_DOMAIN
+    const foundMail = listDefaultMails.find(
+      (mail) => mail.toLowerCase().includes(emailValue.toLowerCase())
+    )
+  
+    return foundMail ?? emailValue + EMAIL_SUGGESTION_DOMAIN
   }
 
   // Handle email input change for registration form
@@ -104,6 +128,16 @@ function RegistrationPage() {
     try {
       const emailTrimmed = email.trim().toLowerCase()
       const numberTrimmed = luckyNumber.trim()
+
+      const foundMail = listDefaultMails.find(
+        (mail) => mail.toLowerCase() === emailTrimmed
+      )
+
+      if(!foundMail) {
+        setMessage('Opps! Email không được chấp thuận, vui lòng sử dụng email khác hoặc liên hệ ADMIN')
+        setIsLoading(false)
+        return
+      }
 
       const numberRef = ref(db, `registration/${numberTrimmed}`)
       const numberSnapshot = await get(numberRef)
