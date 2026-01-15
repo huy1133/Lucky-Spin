@@ -6,6 +6,7 @@ import Home from './components/Home'
 import UserInfoPage from './components/UserInfoPage'
 import { auth } from './firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
+import BackgroundMusic from './components/BackgroundMusic'
 
 function App() {
   const [isConsole, setIsConsole] = useState<boolean>(false)
@@ -98,7 +99,7 @@ function App() {
         <>
           {!isConsole && <RegistrationPage />}
 
-          {isConsole && <Home />}
+          {isConsole && <><Home /><BackgroundMusic videoId="WGmlh2eGnow" /></>}
         </>
       )}
       {isSignedIn && (

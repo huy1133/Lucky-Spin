@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import '../App.css'
-import { ref, set, onValue } from 'firebase/database'
+import { ref, set, onValue, get } from 'firebase/database'
 import { db } from '../firebase'
+
+// Hàm tách tên từ email (bỏ phần @domain.com)
+const getNameFromEmail = (email: string): string => {
+  if (!email) return ''
+  const atIndex = email.indexOf('@')
+  return atIndex > 0 ? email.substring(0, atIndex) : email
+}
 
 interface PrizeCounts {
   'Giải đặc biệt': number
@@ -44,9 +51,10 @@ interface NextSpinInfo {
 
 interface PrizeListProps {
   nextSpin: NextSpinInfo
+  isSpinning: boolean
 }
 
-function PrizeList({ nextSpin }: PrizeListProps) {
+function PrizeList({ nextSpin, isSpinning }: PrizeListProps) {
   const [prizeCounts, setPrizeCounts] = useState<PrizeCounts>({
     'Giải đặc biệt': 1,
     'Giải nhất': 2,
@@ -64,24 +72,33 @@ function PrizeList({ nextSpin }: PrizeListProps) {
   })
 
   const [showSettings, setShowSettings] = useState<boolean>(false)
+  const [viewNumber, setViewNumber] = useState<string | null>(null)
+  const [viewEmail, setViewEmail] = useState<string | null>(null)
   const [tempPrizeCounts, setTempPrizeCounts] = useState<PrizeCounts>(prizeCounts)
-  const [spinConfig, setSpinConfig] = useState<{ duration: number; turns: number }>({
-    duration: 20000,
-    turns: 15
+  const [winnerEmails, setWinnerEmails] = useState<Record<string, string>>({}) // Map luckyNumber -> email
+  const [spinConfig, setSpinConfig] = useState<Record<keyof PrizeCounts, { turns: number }>>({
+    'Giải đặc biệt': { turns: 15 },
+    'Giải nhất': { turns: 15 },
+    'Giải nhì': { turns: 15 },
+    'Giải ba': { turns: 15 },
+    'Giải khuyến khích': { turns: 15 }
   })
-  const [tempSpinConfig, setTempSpinConfig] = useState<{ duration: number; turns: number }>({
-    duration: 20000,
-    turns: 15
+  const [tempSpinConfig, setTempSpinConfig] = useState<Record<keyof PrizeCounts, { turns: number }>>({
+    'Giải đặc biệt': { turns: 15 },
+    'Giải nhất': { turns: 15 },
+    'Giải nhì': { turns: 15 },
+    'Giải ba': { turns: 15 },
+    'Giải khuyến khích': { turns: 15 }
   })
   const hasLoadedWinnersRef = useRef<boolean>(false)
 
-  // Thứ tự hiển thị từ cao xuống thấp (tháp)
+  // Thứ tự hiển thị từ thấp lên cao (giải thấp ở trên, giải cao ở dưới)
   const prizeOrder: (keyof PrizeCounts)[] = [
-    'Giải đặc biệt',
-    'Giải nhất',
-    'Giải nhì',
+    'Giải khuyến khích',
     'Giải ba',
-    'Giải khuyến khích'
+    'Giải nhì',
+    'Giải nhất',
+    'Giải đặc biệt'
   ]
 
   // Convert từ Firebase (tiếng Anh) sang local (tiếng Việt)
@@ -240,7 +257,52 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     }
   }, [])
 
-  // Load spinConfig từ Firebase
+  // Load emails của các winner từ Firebase
+  useEffect(() => {
+    if (!db) return
+
+    // Lấy tất cả các số đã trúng
+    const allWinners: string[] = []
+    Object.values(prizeWinners).forEach((winners) => {
+      winners.forEach((winner: string | null) => {
+        if (winner && !allWinners.includes(winner)) {
+          allWinners.push(winner)
+        }
+      })
+    })
+
+    // Load email cho từng winner
+    const loadEmails = async () => {
+      const emailMap: Record<string, string> = {}
+      
+      await Promise.all(
+        allWinners.map(async (luckyNumber) => {
+          try {
+            const registrationRef = ref(db, `registration/${luckyNumber}`)
+            const snapshot = await get(registrationRef)
+            if (snapshot.exists()) {
+              const data = snapshot.val()
+              if (data.email) {
+                emailMap[luckyNumber] = data.email
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading email for ${luckyNumber}:`, error)
+          }
+        })
+      )
+
+      setWinnerEmails(emailMap)
+    }
+
+    if (allWinners.length > 0) {
+      loadEmails()
+    } else {
+      setWinnerEmails({})
+    }
+  }, [prizeWinners])
+
+  // Load spinConfig từ Firebase (theo từng giải)
   useEffect(() => {
     if (!db) return
 
@@ -249,10 +311,34 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     const unsubscribe = onValue(spinConfigRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val()
-        setSpinConfig({
-          duration: data.duration || 20000,
-          turns: data.turns || 15
+        // Convert từ Firebase format (tiếng Anh) sang local format (tiếng Việt)
+        const prizeMapping: Record<string, keyof PrizeCounts> = {
+          'special': 'Giải đặc biệt',
+          'first': 'Giải nhất',
+          'second': 'Giải nhì',
+          'third': 'Giải ba',
+          'consolation': 'Giải khuyến khích'
+        }
+        
+        const newSpinConfig: Record<keyof PrizeCounts, { turns: number }> = {
+          'Giải đặc biệt': { turns: 15 },
+          'Giải nhất': { turns: 15 },
+          'Giải nhì': { turns: 15 },
+          'Giải ba': { turns: 15 },
+          'Giải khuyến khích': { turns: 15 }
+        }
+        
+        // Load từ Firebase nếu có
+        Object.keys(prizeMapping).forEach((firebaseKey) => {
+          const localKey = prizeMapping[firebaseKey]
+          if (data[firebaseKey]) {
+            newSpinConfig[localKey] = {
+              turns: data[firebaseKey].turns || 15
+            }
+          }
         })
+        
+        setSpinConfig(newSpinConfig)
       }
     })
 
@@ -261,7 +347,13 @@ function PrizeList({ nextSpin }: PrizeListProps) {
 
   const handleOpenSettings = () => {
     setTempPrizeCounts({ ...prizeCounts })
-    setTempSpinConfig({ ...spinConfig })
+    setTempSpinConfig({
+      'Giải đặc biệt': { turns: spinConfig['Giải đặc biệt'].turns },
+      'Giải nhất': { turns: spinConfig['Giải nhất'].turns },
+      'Giải nhì': { turns: spinConfig['Giải nhì'].turns },
+      'Giải ba': { turns: spinConfig['Giải ba'].turns },
+      'Giải khuyến khích': { turns: spinConfig['Giải khuyến khích'].turns }
+    })
     setShowSettings(true)
   }
 
@@ -312,15 +404,13 @@ function PrizeList({ nextSpin }: PrizeListProps) {
       // Cập nhật state local
       setPrizeCounts({ ...tempPrizeCounts })
       setPrizeWinners(resetWinners)
-      
-      alert('Đã lưu cài đặt giải thưởng thành công!')
     } catch (error) {
       console.error('Error saving prize counts to Firebase:', error)
-      alert('Có lỗi xảy ra khi lưu cài đặt giải thưởng. Vui lòng thử lại.')
+      throw error
     }
   }
 
-  // Lưu thông tin vòng quay riêng
+  // Lưu thông tin vòng quay riêng (theo từng giải)
   const handleSaveSpinConfig = async () => {
     if (!db) {
       console.error('Firebase database not available')
@@ -328,20 +418,39 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     }
 
     try {
-      // Lưu spinConfig lên Firebase
-      const spinConfigRef = ref(db, 'settings/spinConfig')
-      await set(spinConfigRef, {
-        duration: tempSpinConfig.duration,
-        turns: tempSpinConfig.turns
+      // Convert từ local format (tiếng Việt) sang Firebase format (tiếng Anh)
+      const prizeMapping: Record<keyof PrizeCounts, string> = {
+        'Giải đặc biệt': 'special',
+        'Giải nhất': 'first',
+        'Giải nhì': 'second',
+        'Giải ba': 'third',
+        'Giải khuyến khích': 'consolation'
+      }
+      
+      const firebaseConfig: Record<string, { turns: number }> = {}
+      
+      Object.keys(tempSpinConfig).forEach((localKey) => {
+        const firebaseKey = prizeMapping[localKey as keyof PrizeCounts]
+        firebaseConfig[firebaseKey] = {
+          turns: tempSpinConfig[localKey as keyof PrizeCounts].turns
+        }
       })
       
-      // Cập nhật state local
-      setSpinConfig({ ...tempSpinConfig })
+      // Lưu spinConfig lên Firebase
+      const spinConfigRef = ref(db, 'settings/spinConfig')
+      await set(spinConfigRef, firebaseConfig)
       
-      alert('Đã lưu cài đặt vòng quay thành công!')
+      // Cập nhật state local
+      setSpinConfig({
+        'Giải đặc biệt': { turns: tempSpinConfig['Giải đặc biệt'].turns },
+        'Giải nhất': { turns: tempSpinConfig['Giải nhất'].turns },
+        'Giải nhì': { turns: tempSpinConfig['Giải nhì'].turns },
+        'Giải ba': { turns: tempSpinConfig['Giải ba'].turns },
+        'Giải khuyến khích': { turns: tempSpinConfig['Giải khuyến khích'].turns }
+      })
     } catch (error) {
       console.error('Error saving spin config to Firebase:', error)
-      alert('Có lỗi xảy ra khi lưu cài đặt vòng quay. Vui lòng thử lại.')
+      throw error
     }
   }
 
@@ -353,11 +462,13 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     })
   }
 
-  const handleSpinConfigChange = (field: 'duration' | 'turns', value: number) => {
-    if (value < 0) return
+  const handleSpinConfigChange = (prize: keyof PrizeCounts, value: number) => {
+    if (value < 1) return
     setTempSpinConfig({
       ...tempSpinConfig,
-      [field]: value
+      [prize]: {
+        turns: value
+      }
     })
   }
 
@@ -392,6 +503,92 @@ function PrizeList({ nextSpin }: PrizeListProps) {
     } catch (error) {
       console.error('Error resetting winners:', error)
       alert('Có lỗi xảy ra khi đặt lại. Vui lòng thử lại.')
+    }
+  }
+
+  const handleViewNumber = async (luckyNumber: string) => {
+    if (!db || !luckyNumber) return
+
+    setViewNumber(luckyNumber)
+    
+    // Lấy email từ Firebase registration data
+    try {
+      const registrationRef = ref(db, `registration/${luckyNumber}`)
+      const snapshot = await get(registrationRef)
+      
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        setViewEmail(data.email || null)
+      } else {
+        setViewEmail(null)
+      }
+    } catch (error) {
+      console.error('Error fetching email:', error)
+      setViewEmail(null)
+    }
+  }
+
+  const handleCloseViewPopup = () => {
+    setViewNumber(null)
+    setViewEmail(null)
+  }
+
+  // Hàm quay lại số đã quay - đặt về null và cập nhật Firebase
+  const handleUndoPrize = async (prize: keyof PrizeCounts, index: number) => {
+    if (!db) {
+      console.error('Firebase database not available')
+      return
+    }
+
+    // Kiểm tra xem slot này có đang được quay không
+    const spinningInfo = getSpinningInfo()
+    const isSpinningThis = spinningInfo.prize === prize && spinningInfo.index === index
+    
+    if (isSpinningThis) {
+      alert('Không thể quay lại khi đang quay số này. Vui lòng đợi quay xong.')
+      return
+    }
+
+    // Xác nhận trước khi quay lại
+    const confirmed = window.confirm('Bạn có chắc chắn muốn quay lại số này?')
+    if (!confirmed) return
+
+    try {
+      // Lấy dữ liệu hiện tại từ Firebase
+      const prizeWinnersDbRef = ref(db, 'settings/prizeWinners')
+      const winnersSnapshot = await get(prizeWinnersDbRef)
+      
+      if (!winnersSnapshot.exists()) {
+        alert('Không tìm thấy dữ liệu giải thưởng.')
+        return
+      }
+
+      const firebaseWinners = winnersSnapshot.val() as PrizeWinnersFirebase
+      const localWinners = convertWinnersFromFirebase(firebaseWinners)
+      
+      // Kiểm tra xem có số ở vị trí này không
+      const currentWinner = localWinners[prize]?.[index]
+      if (!currentWinner) {
+        alert('Không có số nào ở vị trí này để quay lại.')
+        return
+      }
+
+      // Đặt số về null (không xóa khỏi registration DB)
+      const newWinners = { ...localWinners }
+      const prizeArray = [...(newWinners[prize] || [])]
+      prizeArray[index] = null
+      newWinners[prize] = prizeArray
+
+      // Convert sang Firebase format và lưu
+      const firebaseData = convertWinnersToFirebase(newWinners)
+      await set(prizeWinnersDbRef, firebaseData)
+
+      // Cập nhật state local
+      setPrizeWinners(newWinners)
+
+    } catch (error) {
+      console.error('Error undoing prize:', error)
+      alert('Có lỗi xảy ra khi quay lại. Vui lòng thử lại.')
     }
   }
 
@@ -440,14 +637,101 @@ function PrizeList({ nextSpin }: PrizeListProps) {
                   {displayWinners.map((winner, index) => {
                     const spinningInfo = getSpinningInfo()
                     const isSpinningThis = spinningInfo.prize === prize && spinningInfo.index === index
-                    const displayValue = isSpinningThis ? spinningInfo.number : (winner || '???')
+                    const displayValue = isSpinningThis ? (spinningInfo.number || '???') : (winner || '???')
+                    const hasWinner = winner !== null && winner !== undefined && !isSpinningThis
+                    
+                    // Lấy tên từ email nếu có
+                    const winnerEmail = winner ? winnerEmails[winner] : null
+                    const winnerName = winnerEmail ? getNameFromEmail(winnerEmail) : null
                     
                     return (
                       <div 
                         key={index} 
-                        className={`prize-number-box ${isSpinningThis ? 'spinning' : ''}`}
+                        className={`prize-number-box ${isSpinningThis ? 'spinning' : ''} ${hasWinner && !isSpinning ? 'prize-number-won' : ''}`}
                       >
-                        {displayValue}
+                        <div className="prize-number-content">
+                          <span className="prize-number-value">{displayValue}</span>
+                          {hasWinner && winnerName && (
+                            <span className="prize-winner-name">{winnerName}</span>
+                          )}
+                        </div>
+                        {hasWinner && !isSpinning && (
+                          <div className="prize-number-actions">
+                            <button
+                              className="prize-view-btn"
+                              title="Xem"
+                              aria-label="Xem"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleViewNumber(winner)
+                              }}
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <circle
+                                  cx="12"
+                                  cy="12"
+                                  r="3"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              className="prize-undo-btn"
+                              title="Quay lại"
+                              aria-label="Quay lại"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleUndoPrize(prize, index)
+                              }}
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M1 4V10H7"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M23 20V14H17"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14L18.36 18.36A9 9 0 0 1 3.51 15"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -462,147 +746,81 @@ function PrizeList({ nextSpin }: PrizeListProps) {
         <div className="prize-settings-overlay" onClick={handleCloseSettings}>
           <div className="prize-settings-modal" onClick={(e) => e.stopPropagation()}>
             <div className="prize-settings-header">
-              <h3>Cài đặt số lượng giải thưởng</h3>
-              <button className="prize-settings-close" onClick={handleCloseSettings}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+              <h3>Cài đặt</h3>
             </div>
             <div className="prize-settings-content">
-              {prizeOrder.map((prize) => (
-                <div key={prize} className="prize-setting-item">
-                  <label className="prize-setting-label">{prize}</label>
-                  <div className="prize-setting-controls">
-                    <button
-                      className="prize-setting-button"
-                      onClick={() => handlePrizeCountChange(prize, tempPrizeCounts[prize] - 1)}
-                      disabled={tempPrizeCounts[prize] <= 0}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      className="prize-setting-input"
-                      value={tempPrizeCounts[prize]}
-                      onChange={(e) => handlePrizeCountChange(prize, parseInt(e.target.value) || 0)}
-                      min="0"
-                    />
-                    <button
-                      className="prize-setting-button"
-                      onClick={() => handlePrizeCountChange(prize, tempPrizeCounts[prize] + 1)}
-                    >
-                      +
-                    </button>
+              <div className="prize-settings-table">
+                <div className="prize-settings-table-header">
+                  <div className="prize-settings-table-cell" style={{ fontWeight: 600 }}>Giải thưởng</div>
+                  <div className="prize-settings-table-cell" style={{ fontWeight: 600 }}>Số lượng</div>
+                  <div className="prize-settings-table-cell" style={{ fontWeight: 600 }}>Số vòng quay</div>
+                </div>
+                {prizeOrder.map((prize) => (
+                  <div key={prize} className="prize-settings-table-row">
+                    <div className="prize-settings-table-cell" data-label="Giải thưởng">
+                      <label className="prize-setting-label-inline">{prize}</label>
+                    </div>
+                    <div className="prize-settings-table-cell" data-label="Số lượng">
+                      <input
+                        type="number"
+                        className="prize-setting-input"
+                        value={tempPrizeCounts[prize]}
+                        onChange={(e) => handlePrizeCountChange(prize, parseInt(e.target.value) || 0)}
+                        min="0"
+                      />
+                    </div>
+                    <div className="prize-settings-table-cell" data-label="Số vòng quay">
+                      <input
+                        type="number"
+                        className="prize-setting-input"
+                        value={tempSpinConfig[prize].turns}
+                        onChange={(e) => handleSpinConfigChange(prize, parseInt(e.target.value) || 1)}
+                        min="1"
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
-              
-              {/* Nút lưu riêng cho giải thưởng */}
-              <div style={{ 
-                marginTop: '16px', 
-                display: 'flex', 
-                gap: '12px', 
-                justifyContent: 'flex-end' 
-              }}>
-                <button 
-                  className="prize-settings-save" 
-                  onClick={handleSavePrizeSettings}
-                  style={{ fontSize: '14px', padding: '8px 16px' }}
-                >
-                  Lưu cài đặt giải thưởng
-                </button>
-              </div>
-              
-              {/* Phần cài đặt vòng quay */}
-              <div style={{ 
-                marginTop: '24px', 
-                paddingTop: '24px', 
-                borderTop: '2px solid #e0e0e0' 
-              }}>
-                <h4 style={{ 
-                  margin: '0 0 16px 0', 
-                  fontSize: '16px', 
-                  fontWeight: 700, 
-                  color: '#333' 
-                }}>
-                  Cài đặt vòng quay
-                </h4>
-                
-                <div className="prize-setting-item">
-                  <label className="prize-setting-label">Thời gian quay (ms)</label>
-                  <div className="prize-setting-controls">
-                    <button
-                      className="prize-setting-button"
-                      onClick={() => handleSpinConfigChange('duration', tempSpinConfig.duration - 1000)}
-                      disabled={tempSpinConfig.duration <= 1000}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      className="prize-setting-input"
-                      style={{ width: '100px' }}
-                      value={tempSpinConfig.duration}
-                      onChange={(e) => handleSpinConfigChange('duration', parseInt(e.target.value) || 1000)}
-                      min="1000"
-                      step="1000"
-                    />
-                    <button
-                      className="prize-setting-button"
-                      onClick={() => handleSpinConfigChange('duration', tempSpinConfig.duration + 1000)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="prize-setting-item">
-                  <label className="prize-setting-label">Số vòng quay</label>
-                  <div className="prize-setting-controls">
-                    <button
-                      className="prize-setting-button"
-                      onClick={() => handleSpinConfigChange('turns', tempSpinConfig.turns - 1)}
-                      disabled={tempSpinConfig.turns <= 1}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      className="prize-setting-input"
-                      style={{ width: '100px' }}
-                      value={tempSpinConfig.turns}
-                      onChange={(e) => handleSpinConfigChange('turns', parseInt(e.target.value) || 1)}
-                      min="1"
-                    />
-                    <button
-                      className="prize-setting-button"
-                      onClick={() => handleSpinConfigChange('turns', tempSpinConfig.turns + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Nút lưu riêng cho vòng quay */}
-                <div style={{ 
-                  marginTop: '16px', 
-                  display: 'flex', 
-                  gap: '12px', 
-                  justifyContent: 'flex-end' 
-                }}>
-                  <button 
-                    className="prize-settings-save" 
-                    onClick={handleSaveSpinConfig}
-                    style={{ fontSize: '14px', padding: '8px 16px' }}
-                  >
-                    Lưu cài đặt vòng quay
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
             <div className="prize-settings-footer">
               <button className="prize-settings-cancel" onClick={handleCloseSettings}>
+                Đóng
+              </button>
+              <button 
+                className="prize-settings-save" 
+                onClick={async () => {
+                  try {
+                    await handleSavePrizeSettings()
+                    await handleSaveSpinConfig()
+                    alert('Đã lưu cài đặt thành công!')
+                  } catch (error) {
+                    alert('Có lỗi xảy ra khi lưu cài đặt. Vui lòng thử lại.')
+                  }
+                }}
+              >
+                Lưu cài đặt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Popup */}
+      {viewNumber && (
+        <div className="winner-popup-overlay" onClick={handleCloseViewPopup}>
+          <div className="winner-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="winner-popup-content">
+              <div className="winner-popup-title">Thông tin số may mắn</div>
+              <div className="winner-popup-number">Số may mắn: {viewNumber}</div>
+              {viewEmail && (
+                <div className="winner-popup-email">Người dùng: {viewEmail}</div>
+              )}
+              {!viewEmail && (
+                <div className="winner-popup-email" style={{ color: '#999', fontStyle: 'italic' }}>
+                  Không tìm thấy thông tin người dùng
+                </div>
+              )}
+              <button className="winner-popup-close" onClick={handleCloseViewPopup}>
                 Đóng
               </button>
             </div>

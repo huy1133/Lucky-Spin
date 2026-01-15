@@ -17,14 +17,15 @@ function Home() {
     index: null,
     number: ''
   })
+  const [isSpinning, setIsSpinning] = useState<boolean>(false)
 
   return (
     <div className="signed-in-page">
       <AnimatedNodeBackground />
       <div className="home-layout">
         <ParticipantList />
-        <SpinWheel nextSpin={nextSpin} setNextSpin={setNextSpin} />
-        <PrizeList nextSpin={nextSpin} />
+        <SpinWheel nextSpin={nextSpin} setNextSpin={setNextSpin} setIsSpinning={setIsSpinning} />
+        <PrizeList nextSpin={nextSpin} isSpinning={isSpinning} />
       </div>
     </div>
   )
