@@ -18,7 +18,8 @@ const EMPTY_PRIZE_WINNERS = {
 }
 const TWO_PI = 2 * Math.PI
 const POINTER_ANGLE = (3 * Math.PI) / 2
-const LOCK_PATH = new Path2D('M18,8h-1V6c0-2.76-2.24-5-5-5S7,3.24,7,6v2H6c-1.1,0-2,0.9-2,2v10c0,1.1,0.9,2,2,2h12c1.1,0,2-0.9,2-2V10C20,8.9,19.1,8,18,8z M12,17c-1.1,0-2-0.9-2-2s0.9-2,2-2s2,0.9,2,2S13.1,17,12,17z M15.1,8H8.9V6c0-1.71,1.39-3.1,3.1-3.1s3.1,1.39,3.1,3.1V8z')
+// Refresh icon path - 2 circular arrows pointing inward (Material Icons refresh)
+const REFRESH_PATH = new Path2D('M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z')
 
 // Easing function: easeOutQuart - 1 - (1-t)^4
 const easeOutQuart = (t: number): number => 1 - Math.pow(1 - t, 4)
@@ -336,19 +337,18 @@ function SpinWheel({ setNextSpin, setIsSpinning: setParentIsSpinning }: SpinWhee
           ctx.fillText(displayNumbers[i], 0, 0)
         } else {
           const iconSize = Math.max(28, Math.min(45, radius / 6))
-          const lockColor = i % 2 === 0 ? '#e53935' : '#ffffff'
           const scale = iconSize / 24
           
           ctx.save()
           ctx.scale(scale, scale)
           ctx.translate(-12, -12)
-          ctx.fillStyle = lockColor
-          ctx.strokeStyle = lockColor
-          ctx.lineWidth = 1.5 / scale
+          ctx.fillStyle = '#ffffff'
+          ctx.strokeStyle = '#ffffff'
+          ctx.lineWidth = 2 / scale
           ctx.lineCap = 'round'
           ctx.lineJoin = 'round'
-          ctx.fill(LOCK_PATH)
-          ctx.stroke(LOCK_PATH)
+          ctx.fill(REFRESH_PATH)
+          ctx.stroke(REFRESH_PATH)
           ctx.restore()
         }
         
