@@ -322,8 +322,8 @@ function SpinWheel({ setNextSpin, setIsSpinning: setParentIsSpinning }: SpinWhee
 
         // Draw lucky number text or lock icon
         const textAngle = startAngle + anglePerSegment / 2
-        const textX = centerX + Math.cos(textAngle) * (radius * 0.7)
-        const textY = centerY + Math.sin(textAngle) * (radius * 0.7)
+        const textX = centerX + Math.cos(textAngle) * (radius * 0.85)
+        const textY = centerY + Math.sin(textAngle) * (radius * 0.85)
 
         ctx.save()
         ctx.translate(textX, textY)

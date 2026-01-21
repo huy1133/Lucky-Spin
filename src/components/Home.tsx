@@ -18,14 +18,15 @@ function Home() {
     number: ''
   })
   const [isSpinning, setIsSpinning] = useState<boolean>(false)
+  const [isParticipantListMinimized, setIsParticipantListMinimized] = useState<boolean>(true)
 
   return (
     <div className="signed-in-page">
       <AnimatedNodeBackground />
       <div className="home-layout">
-        <ParticipantList />
+        <ParticipantList onMinimizedChange={setIsParticipantListMinimized} />
         <SpinWheel nextSpin={nextSpin} setNextSpin={setNextSpin} setIsSpinning={setIsSpinning} />
-        <PrizeList nextSpin={nextSpin} isSpinning={isSpinning} />
+        <PrizeList nextSpin={nextSpin} isSpinning={isSpinning} isParticipantListMinimized={isParticipantListMinimized} />
       </div>
     </div>
   )

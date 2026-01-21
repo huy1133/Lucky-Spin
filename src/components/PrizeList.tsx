@@ -52,9 +52,10 @@ interface NextSpinInfo {
 interface PrizeListProps {
   nextSpin: NextSpinInfo
   isSpinning: boolean
+  isParticipantListMinimized?: boolean
 }
 
-function PrizeList({ nextSpin, isSpinning }: PrizeListProps) {
+function PrizeList({ nextSpin, isSpinning, isParticipantListMinimized = false }: PrizeListProps) {
   const [prizeCounts, setPrizeCounts] = useState<PrizeCounts>({
     'Giải đặc biệt': 1,
     'Giải nhất': 2,
@@ -594,7 +595,7 @@ function PrizeList({ nextSpin, isSpinning }: PrizeListProps) {
 
   return (
     <>
-      <div className="prize-list-section">
+      <div className={`prize-list-section ${isParticipantListMinimized ? 'participant-minimized' : ''}`}>
         <div className="prize-list-header">
           <h2>Danh sách giải thưởng</h2>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -644,10 +645,12 @@ function PrizeList({ nextSpin, isSpinning }: PrizeListProps) {
                     const winnerEmail = winner ? winnerEmails[winner] : null
                     const winnerName = winnerEmail ? getNameFromEmail(winnerEmail) : null
                     
+                    const isEmpty = !hasWinner && !isSpinningThis
+                    
                     return (
                       <div 
                         key={index} 
-                        className={`prize-number-box ${isSpinningThis ? 'spinning' : ''} ${hasWinner && !isSpinning ? 'prize-number-won' : ''}`}
+                        className={`prize-number-box ${isSpinningThis ? 'spinning' : ''} ${hasWinner && !isSpinning ? 'prize-number-won' : ''} ${isEmpty ? 'prize-number-empty' : ''}`}
                       >
                         <div className="prize-number-content">
                           <span className="prize-number-value">{displayValue}</span>

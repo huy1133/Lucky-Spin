@@ -599,6 +599,12 @@
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 16px;
+  transition: width 0.3s ease;
+}
+
+/* When ParticipantList is minimized, PrizeList expands to take its space */
+.prize-list-section.participant-minimized {
+  width: 35%; /* 25% + 17% (ParticipantList width) */
 }
 
 @media (max-width: 768px) {
@@ -609,6 +615,10 @@
     height: auto;
     max-height: 30vh;
     order: 3;
+  }
+
+  .prize-list-section.participant-minimized {
+    width: 100%;
   }
 }
 
@@ -829,6 +839,25 @@
 .prize-number-box.prize-number-won:hover .prize-number-actions {
   z-index: 20;
   animation: fadeInScale 0.3s ease;
+}
+
+/* Style for empty/unspun numbers */
+.prize-number-box.prize-number-empty {
+  background-color: #f8f8f8;
+  border-color: #d0d0d0;
+  color: #999;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.prize-number-box.prize-number-empty .prize-number-value {
+  color: #999;
+  font-weight: 600;
+}
+
+.prize-number-box.prize-number-empty:hover {
+  background-color: #f0f0f0;
+  border-color: #c0c0c0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 @keyframes fadeInScale {

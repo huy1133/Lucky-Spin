@@ -11,12 +11,23 @@ interface Participant {
 
 type SortOption = 'number' | 'email' | 'timestamp'
 
-function ParticipantList() {
+interface ParticipantListProps {
+  onMinimizedChange?: (isMinimized: boolean) => void
+}
+
+function ParticipantList({ onMinimizedChange }: ParticipantListProps) {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isLocked, setIsLocked] = useState<boolean>(false)
   const [sortBy, setSortBy] = useState<SortOption>('timestamp')
   const [isMinimized, setIsMinimized] = useState<boolean>(true)
+
+  // Notify parent when minimized state changes
+  useEffect(() => {
+    if (onMinimizedChange) {
+      onMinimizedChange(isMinimized)
+    }
+  }, [isMinimized, onMinimizedChange])
 
   // Load locked status from Firebase
   useEffect(() => {
