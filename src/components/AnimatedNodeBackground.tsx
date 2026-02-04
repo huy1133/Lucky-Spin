@@ -27,7 +27,7 @@ function AnimatedNodeBackground() {
     }
 
     const getDensityMultiplier = () => {
-      return window.innerWidth > 3000 ? 25 : 1
+      return window.innerWidth > 3000 ? 20 : 1
     }
 
     const getDistanceMultiplier = () => {

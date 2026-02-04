@@ -155,11 +155,11 @@
 
   /* Minimized Floating Button */
   .participant-minimized-btn {
-    left: calc(24px * var(--scale));
-    top: 50%;
-    padding: calc(16px * var(--scale)) calc(20px * var(--scale));
+    left: 0px;
+    top: 60%;
+    padding: 50px;
     border-radius: calc(50px * var(--scale));
-    gap: calc(12px * var(--scale));
+    gap: 0px;
     font-weight: 600;
     font-size: calc(14px * var(--font-size));
     box-shadow: 0 calc(8px * var(--scale)) calc(24px * var(--scale)) rgba(229, 57, 53, 0.4);
@@ -262,6 +262,7 @@
     margin-bottom: calc(16px * var(--scale));
     padding-bottom: calc(12px * var(--scale));
     border-bottom: calc(2px * var(--scale)) solid #e53935;
+    height: 160px;
   }
 
   .prize-list-header h2 {
@@ -293,7 +294,7 @@
   }
 
   .prize-row {
-    gap: calc(16px * var(--scale));
+    gap: 0px;
     padding: calc(12px * var(--scale));
     border-radius: calc(8px * var(--scale));
   }
@@ -311,7 +312,7 @@
   .prize-number-box {
     min-width: calc(50px * var(--scale));
     max-width: calc(200px * var(--scale));
-    height: calc(45px * var(--scale));
+    height: 150px;
     border: calc(2px * var(--scale)) solid #e53935;
     border-radius: calc(8px * var(--scale));
     font-size: calc(14px * var(--font-size));
@@ -389,6 +390,7 @@
     margin-bottom: calc(20px * var(--scale));
     padding-bottom: calc(16px * var(--scale));
     border-bottom: calc(2px * var(--scale)) solid #e53935;
+    height: 60px;
   }
 
   .prize-settings-header h3 {
@@ -440,6 +442,7 @@
     border-radius: calc(6px * var(--scale));
     font-size: calc(14px * var(--font-size));
     font-weight: 600;
+    background-color: #e539354f;
   }
 
   .prize-setting-label-inline {
@@ -455,11 +458,13 @@
   .prize-settings-table-header {
     padding: calc(12px * var(--scale)) calc(16px * var(--scale));
     border-bottom: calc(2px * var(--scale)) solid #e53935;
+    height: 200px;
   }
 
   .prize-settings-table-row {
     padding: calc(12px * var(--scale)) calc(16px * var(--scale));
     border-bottom: 1px solid #e0e0e0;
+    height: 200px;
   }
 
   .prize-settings-table-cell {
@@ -586,13 +591,14 @@
     padding: calc(10px * var(--scale)) calc(40px * var(--scale));
     border-radius: calc(16px * var(--scale));
     box-shadow: 0 calc(4px * var(--scale)) calc(12px * var(--scale)) rgba(0, 0, 0, 0.2);
+    margin-bottom: 30px;
   }
 
   .winner-popup-email {
     font-size: calc(24px * var(--fs-popup-email));
     font-weight: 600;
-    margin: 0;
-    padding: calc(8px * var(--scale)) calc(32px * var(--scale));
+    margin-top: 20;
+    padding: 0px 80px;
     border-radius: calc(12px * var(--scale));
     box-shadow: 0 calc(2px * var(--scale)) calc(8px * var(--scale)) rgba(0, 0, 0, 0.15);
   }
@@ -618,6 +624,7 @@
   .form-title {
     font-size: calc(24px * var(--fs-form-title));
     font-weight: 700;
+    height: 200px;
   }
 
   .form-group {
@@ -627,6 +634,8 @@
   .form-label {
     font-size: calc(14px * var(--fs-label));
     font-weight: 500;
+    margin-bottom: 200px;
+    height: 0px;
   }
 
   .form-input {
@@ -642,8 +651,8 @@
     border-radius: calc(999px * var(--scale));
     font-weight: 600;
     font-size: calc(15px * var(--fs-button));
+    margin: 80px 0px;
   }
-
   .form-message {
     font-size: calc(13px * var(--font-size));
     padding: calc(8px * var(--scale)) calc(10px * var(--scale));
@@ -664,7 +673,7 @@
   }
 
   .switch-button {
-    padding: calc(12px * var(--scale)) calc(24px * var(--scale));
+    padding: 50px;
     font-size: calc(16px * var(--font-size));
     font-weight: 700;
     border-radius: calc(30px * var(--scale));
@@ -689,13 +698,13 @@
   }
 
   .music-button {
-    padding: calc(12px * var(--scale));
+    padding: 30px;
     font-size: calc(16px * var(--font-size));
     font-weight: bold;
     border: calc(2px * var(--scale)) solid #e53935;
     border-radius: 50%;
-    width: calc(48px * var(--scale));
-    height: calc(48px * var(--scale));
+    width: 150px;
+    height: 150px;
     box-shadow: 0 calc(4px * var(--scale)) calc(12px * var(--scale)) rgba(229, 57, 53, 0.3);
   }
 

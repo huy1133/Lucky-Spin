@@ -55,7 +55,7 @@ function Confetti({ active, duration = 3000 }: ConfettiProps) {
         vx: (Math.random() - 0.5) * 2,
         vy: 2 + Math.random() * 3,
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: 8 + Math.random() * 6,
+        size: 8 + Math.random() * 50,
         rotation: Math.random() * Math.PI * 2,
         rotationSpeed: (Math.random() - 0.5) * 0.2,
       })
