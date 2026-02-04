@@ -21,11 +21,24 @@ function AnimatedNodeBackground() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // Get scale multiplier for large screens (width > 3000px)
+    const getScaleMultiplier = () => {
+      return window.innerWidth > 3000 ? 5 : 1
+    }
+
+    const getDensityMultiplier = () => {
+      return window.innerWidth > 3000 ? 25 : 1
+    }
+
+    const getDistanceMultiplier = () => {
+      return window.innerWidth > 3000 ? 4 : 1
+    }
+
     // Calculate node count based on screen size
     // Density: approximately 1 node per 8000 pixels (adjustable)
     const calculateNodeCount = (width: number, height: number): number => {
       const area = width * height
-      const density = 8000 // pixels per node
+      const density = 8000 * getDensityMultiplier() // pixels per node
       const nodeCount = Math.floor(area / density)
       // Set min and max limits for performance
       return Math.max(30, Math.min(150, nodeCount))
@@ -57,14 +70,15 @@ function AnimatedNodeBackground() {
     // Create nodes based on screen size
     const nodeCount = calculateNodeCount(canvas.width, canvas.height)
     const nodes: Node[] = []
+    const scaleMultiplier = getScaleMultiplier()
     
     for (let i = 0; i < nodeCount; i++) {
       nodes.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        radius: Math.random() * 2 + 1,
+        vx: (Math.random() - 0.5) * 0.5 * scaleMultiplier,
+        vy: (Math.random() - 0.5) * 0.5 * scaleMultiplier,
+        radius: (Math.random() * 2 + 1) * scaleMultiplier,
       })
     }
     nodesRef.current = nodes
@@ -106,7 +120,8 @@ function AnimatedNodeBackground() {
       })
 
       // Draw connections between nearby nodes
-      const maxDistance = 150
+      const scaleMultiplier = getScaleMultiplier()
+      const maxDistance = 150 * getDistanceMultiplier();
       nodes.forEach((node, i) => {
         nodes.slice(i + 1).forEach((otherNode) => {
           const dx = node.x - otherNode.x
@@ -119,7 +134,7 @@ function AnimatedNodeBackground() {
             ctx.moveTo(node.x, node.y)
             ctx.lineTo(otherNode.x, otherNode.y)
             ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`
-            ctx.lineWidth = 0.7
+            ctx.lineWidth = 0.7 * scaleMultiplier
             ctx.stroke()
           }
         })

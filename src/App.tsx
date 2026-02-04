@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import './App-large-screen.css'
 import LoginPage from './components/LoginPage'
 import RegistrationPage from './components/RegistrationPage'
 import Home from './components/Home'
