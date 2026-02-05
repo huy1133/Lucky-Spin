@@ -597,7 +597,7 @@ function PrizeList({ nextSpin, isSpinning, isParticipantListMinimized = false }:
     <>
       <div className={`prize-list-section ${isParticipantListMinimized ? 'participant-minimized' : ''}`}>
         <div className="prize-list-header">
-          <h2>Danh sách giải thưởng</h2>
+          <h2 style={{color:'#e53935'}}>HU1 - Xổ số vui Xuân </h2>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
               className="prize-reset-button" 
